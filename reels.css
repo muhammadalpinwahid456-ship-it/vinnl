@@ -18,74 +18,61 @@ body {
     background: #0d1117;
 }
 
-/* LEFT SIDEBAR */
-.reels-left-sidebar {
+/* ===== LEFT SIDEBAR NAVIGATION ===== */
+.reels-sidebar-nav {
     width: 80px;
-    background: linear-gradient(180deg, #1a1f3a 0%, #0f1527 100%);
+    background: linear-gradient(135deg, #1a1f3a 0%, #0f1527 100%);
     border-right: 1px solid #2d333b;
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 16px 0;
-    gap: 16px;
+    padding: 20px 0;
+    gap: 20px;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
+    z-index: 100;
 }
 
-.sidebar-logo {
+.nav-brand {
     font-size: 2rem;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: transform 0.2s ease;
 }
 
-.sidebar-logo h1 {
-    margin: 0;
+.nav-brand:hover {
+    transform: scale(1.1);
 }
 
-.sidebar-nav {
-    flex: 1;
+.nav-buttons {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    align-items: center;
+    flex: 1;
 }
 
 .nav-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: #e0e6ed;
+    cursor: pointer;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    width: 60px;
-    height: 60px;
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-    color: white;
-    border: none;
-    border-radius: 12px;
-    cursor: pointer;
+    gap: 4px;
+    transition: all 0.3s ease;
+    font-size: 0.75rem;
     font-weight: 600;
-    font-size: 0.85rem;
-    text-decoration: none;
-    transition: all 0.2s ease;
-    position: relative;
-    overflow: hidden;
-}
-
-.nav-btn::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: rgba(255, 255, 255, 0.1);
-    transition: left 0.3s ease;
-}
-
-.nav-btn:hover::before {
-    left: 100%;
 }
 
 .nav-btn:hover {
+    background: rgba(59, 130, 246, 0.2);
+    border-color: #3b82f6;
     transform: translateY(-4px);
-    box-shadow: 0 8px 16px rgba(59, 130, 246, 0.4);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 .nav-btn:active {
@@ -94,44 +81,24 @@ body {
 
 .nav-icon {
     font-size: 1.5rem;
-    display: block;
 }
 
 .nav-label {
     font-size: 0.7rem;
-    display: block;
     text-align: center;
+    white-space: nowrap;
 }
 
-.nav-btn.logout-btn {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+.logout-btn {
     margin-top: auto;
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.3);
 }
 
-.nav-btn.logout-btn:hover {
-    box-shadow: 0 8px 16px rgba(239, 68, 68, 0.4);
-}
-
-/* MAIN CONTENT */
-.reels-content {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-/* HEADER (Mini) */
-.reels-header-mini {
-    background: linear-gradient(135deg, #1a1f3a 0%, #0f1527 100%);
-    padding: 12px 20px;
-    border-bottom: 1px solid #2d333b;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-.header-brand .logo {
-    font-size: 1.3rem;
-    font-weight: 600;
-    margin: 0;
+.logout-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: #ef4444;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
 
 /* LOADING SPINNER */
@@ -240,6 +207,7 @@ body {
     flex: 1;
     position: relative;
     overflow: hidden;
+    background: #000;
 }
 
 .reels-carousel {
@@ -255,6 +223,12 @@ body {
     display: flex;
     position: relative;
     scroll-snap-align: start;
+    opacity: 0.5;
+    transition: opacity 0.3s ease;
+}
+
+.reel-card.active {
+    opacity: 1;
 }
 
 .reel-media {
@@ -317,7 +291,45 @@ body {
     font-size: 1.2rem;
 }
 
-/* CONTROLS */
+/* PLAYBACK CONTROLS (PLAY/PAUSE) */
+.playback-controls {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: all;
+    z-index: 15;
+}
+
+.play-pause-btn {
+    background: rgba(0, 0, 0, 0.5);
+    border: none;
+    color: white;
+    font-size: 3rem;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.play-pause-btn:hover {
+    background: rgba(59, 130, 246, 0.7);
+    transform: scale(1.1);
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+    border-color: rgba(59, 130, 246, 0.8);
+}
+
+.play-pause-btn:active {
+    transform: scale(0.95);
+}
+
+/* NAVIGATION CONTROLS */
 .reels-controls {
     position: absolute;
     left: 50%;
@@ -344,15 +356,19 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(255, 255, 255, 0.1);
 }
 
 .control-btn:hover {
     background: rgba(255, 255, 255, 0.3);
     transform: scale(1.1);
+    border-color: rgba(255, 255, 255, 0.3);
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
 }
 
-/* SIDEBAR ACTIONS (Right) */
-.reels-sidebar {
+/* RIGHT SIDEBAR ACTIONS */
+.reels-actions-sidebar {
     position: absolute;
     right: 20px;
     bottom: 100px;
@@ -383,15 +399,19 @@ body {
     justify-content: center;
     font-size: 1.2rem;
     backdrop-filter: blur(10px);
+    border: 2px solid rgba(255, 255, 255, 0.1);
 }
 
 .action-btn:hover {
     background: rgba(255, 255, 255, 0.25);
     transform: scale(1.1);
+    border-color: rgba(255, 255, 255, 0.3);
 }
 
 .action-btn.liked {
     color: #ef4444;
+    background: rgba(239, 68, 68, 0.2);
+    border-color: #ef4444;
 }
 
 .action-btn .icon {
@@ -416,6 +436,18 @@ body {
     flex-direction: column;
     z-index: 20;
     box-shadow: -2px 0 8px rgba(0, 0, 0, 0.3);
+    animation: slideInComment 0.3s ease;
+}
+
+@keyframes slideInComment {
+    from {
+        transform: translateX(350px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
 }
 
 .comments-header {
@@ -453,18 +485,6 @@ body {
 .comment-item {
     padding: 12px 16px;
     border-bottom: 1px solid #2d333b;
-    animation: slideInComment 0.3s ease;
-}
-
-@keyframes slideInComment {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
 }
 
 .comment-user {
@@ -762,31 +782,27 @@ body {
 
 /* RESPONSIVE */
 @media (max-width: 768px) {
-    .reels-left-sidebar {
+    .reels-sidebar-nav {
         width: 70px;
-        padding: 12px 0;
-        gap: 10px;
+        padding: 15px 0;
+        gap: 15px;
     }
 
     .nav-btn {
         width: 55px;
         height: 55px;
-        font-size: 0.8rem;
     }
 
-    .nav-icon {
-        font-size: 1.3rem;
-    }
-
-    .nav-label {
-        font-size: 0.65rem;
+    .reels-actions-sidebar {
+        right: 10px;
+        bottom: 70px;
     }
 
     .comments-panel {
         width: 100%;
         right: auto;
-        top: auto;
         bottom: 0;
+        top: auto;
         max-height: 50vh;
         border-left: none;
         border-top: 1px solid #2d333b;
@@ -798,33 +814,63 @@ body {
         font-size: 1.5rem;
     }
 
+    .play-pause-btn {
+        width: 60px;
+        height: 60px;
+        font-size: 2rem;
+    }
+
     .modal-content {
         width: 95%;
         padding: 20px;
     }
+
+    .reel-info {
+        padding: 16px;
+    }
 }
 
 @media (max-width: 480px) {
-    .reels-left-sidebar {
+    .reels-sidebar-nav {
         width: 65px;
+        padding: 10px 0;
+        gap: 10px;
     }
 
     .nav-btn {
         width: 50px;
         height: 50px;
-        font-size: 0.75rem;
+        font-size: 0.7rem;
     }
 
     .nav-icon {
+        font-size: 1.3rem;
+    }
+
+    .play-pause-btn {
+        width: 50px;
+        height: 50px;
+        font-size: 1.8rem;
+    }
+
+    .control-btn {
+        width: 35px;
+        height: 35px;
         font-size: 1.2rem;
     }
 
-    .reels-header-mini {
-        padding: 10px 12px;
+    .reels-controls {
+        padding: 0 10px;
     }
 
-    .header-brand .logo {
-        font-size: 1.1rem;
+    .reels-actions-sidebar {
+        right: 8px;
+        bottom: 60px;
+    }
+
+    .action-btn {
+        width: 45px;
+        height: 45px;
     }
 }
 

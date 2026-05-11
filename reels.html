@@ -18,101 +18,105 @@
 
     <!-- REELS CONTAINER -->
     <div id="reelsContainer" class="reels-container" style="display: none;">
-        <!-- LEFT SIDEBAR -->
-        <div class="reels-left-sidebar">
-            <div class="sidebar-logo">
-                <h1>🎬</h1>
+        <!-- LEFT SIDEBAR NAVIGATION -->
+        <aside class="reels-sidebar-nav">
+            <div class="nav-brand">
+                <h2>🎬</h2>
             </div>
-            <nav class="sidebar-nav">
+            
+            <nav class="nav-buttons">
                 <button class="nav-btn" onclick="openUploadModal()" title="Upload">
                     <span class="nav-icon">➕</span>
                     <span class="nav-label">Upload</span>
                 </button>
-                <a href="profile.html" class="nav-btn" title="Profile">
+                <button class="nav-btn" onclick="window.location.href='profile.html'" title="Profile">
                     <span class="nav-icon">👤</span>
                     <span class="nav-label">Profile</span>
-                </a>
-                <a href="index.html" class="nav-btn" title="Home">
+                </button>
+                <button class="nav-btn" onclick="window.location.href='index.html'" title="Home">
                     <span class="nav-icon">🏠</span>
                     <span class="nav-label">Home</span>
-                </a>
-                <button class="nav-btn logout-btn" onclick="logoutReels()" title="Logout">
-                    <span class="nav-icon">🚪</span>
-                    <span class="nav-label">Logout</span>
                 </button>
             </nav>
+
+            <button class="nav-btn logout-btn" onclick="logoutReels()" title="Logout">
+                <span class="nav-icon">🚪</span>
+                <span class="nav-label">Logout</span>
+            </button>
+        </aside>
+
+        <!-- LOADING SPINNER -->
+        <div id="loadingSpinner" class="loading-spinner" style="display: none;">
+            <div class="spinner"></div>
+            <p>Loading reels...</p>
         </div>
 
-        <!-- MAIN CONTENT -->
-        <div class="reels-content">
-            <!-- HEADER (Mini) -->
-            <header class="reels-header-mini">
-                <div class="header-brand">
-                    <h1 class="logo">ALVIN Reels</h1>
-                </div>
-            </header>
-
-            <!-- LOADING SPINNER -->
-            <div id="loadingSpinner" class="loading-spinner" style="display: none;">
-                <div class="spinner"></div>
-                <p>Loading reels...</p>
+        <!-- ERROR MESSAGE -->
+        <div id="errorMessage" class="error-message" style="display: none;">
+            <div class="error-content">
+                <h2>❌ Error</h2>
+                <p id="errorText"></p>
+                <button onclick="location.reload()">Coba Lagi</button>
             </div>
+        </div>
 
-            <!-- ERROR MESSAGE -->
-            <div id="errorMessage" class="error-message" style="display: none;">
-                <div class="error-content">
-                    <h2>❌ Error</h2>
-                    <p id="errorText"></p>
-                    <button onclick="location.reload()">Coba Lagi</button>
+        <!-- MAIN REELS AREA -->
+        <div class="reels-main" id="reelsMain" style="display: none;">
+            <div class="reels-viewer">
+                <div id="reelsCarousel" class="reels-carousel">
+                    <!-- Reels akan ditampilkan di sini -->
                 </div>
-            </div>
-
-            <!-- MAIN REELS AREA -->
-            <div class="reels-main" id="reelsMain" style="display: none;">
-                <div class="reels-viewer">
-                    <div id="reelsCarousel" class="reels-carousel">
-                        <!-- Reels akan ditampilkan di sini -->
-                    </div>
-                    <div class="reels-controls">
-                        <button class="control-btn prev-btn" onclick="previousReel(event)">❮</button>
-                        <button class="control-btn next-btn" onclick="nextReel(event)">❯</button>
-                    </div>
+                
+                <!-- PLAY/PAUSE OVERLAY -->
+                <div class="playback-controls" id="playbackControls">
+                    <button class="play-pause-btn" id="playPauseBtn" onclick="togglePlayPause(event)">
+                        <span id="playPauseIcon">⏸</span>
+                    </button>
                 </div>
 
-                <!-- SIDEBAR ACTIONS (Right) -->
-                <div class="reels-sidebar">
-                    <div class="action-group">
-                        <button class="action-btn like-btn" id="likeBtn" onclick="toggleLike(event)">
-                            <span class="icon">♡</span>
-                            <span class="count" id="likeCount">0</span>
-                        </button>
-                        <button class="action-btn comment-btn" onclick="toggleComments(event)">
-                            <span class="icon">💬</span>
-                            <span class="count" id="commentCount">0</span>
-                        </button>
-                    </div>
+                <div class="reels-controls">
+                    <button class="control-btn prev-btn" onclick="previousReel(event)">❮</button>
+                    <button class="control-btn next-btn" onclick="nextReel(event)">❯</button>
                 </div>
             </div>
 
-            <!-- COMMENTS PANEL -->
-            <div id="commentsPanel" class="comments-panel" style="display: none;">
-                <div class="comments-header">
-                    <h3>Komentar</h3>
-                    <button class="close-comments" onclick="toggleComments(event)">✕</button>
+            <!-- SIDEBAR ACTIONS (RIGHT) -->
+            <div class="reels-actions-sidebar">
+                <div class="action-group">
+                    <button class="action-btn like-btn" id="likeBtn" onclick="toggleLike(event)">
+                        <span class="icon">♡</span>
+                        <span class="count" id="likeCount">0</span>
+                    </button>
+                    <button class="action-btn comment-btn" onclick="toggleComments(event)">
+                        <span class="icon">💬</span>
+                        <span class="count" id="commentCount">0</span>
+                    </button>
+                    <button class="action-btn share-btn" onclick="shareReel(event)">
+                        <span class="icon">📤</span>
+                        <span class="count">0</span>
+                    </button>
                 </div>
-                <div class="comments-list" id="commentsList">
-                    <!-- Comments akan ditampilkan di sini -->
-                </div>
-                <div class="comment-input-area">
-                    <input 
-                        type="text" 
-                        id="commentInput" 
-                        placeholder="Tambahkan komentar..." 
-                        onkeypress="handleCommentKeyPress(event)"
-                        onclick="event.stopPropagation()"
-                    >
-                    <button onclick="sendComment(event)">Kirim</button>
-                </div>
+            </div>
+        </div>
+
+        <!-- COMMENTS PANEL -->
+        <div id="commentsPanel" class="comments-panel" style="display: none;">
+            <div class="comments-header">
+                <h3>Komentar</h3>
+                <button class="close-comments" onclick="toggleComments(event)">✕</button>
+            </div>
+            <div class="comments-list" id="commentsList">
+                <!-- Comments akan ditampilkan di sini -->
+            </div>
+            <div class="comment-input-area">
+                <input 
+                    type="text" 
+                    id="commentInput" 
+                    placeholder="Tambahkan komentar..." 
+                    onkeypress="handleCommentKeyPress(event)"
+                    onclick="event.stopPropagation()"
+                >
+                <button onclick="sendComment(event)">Kirim</button>
             </div>
         </div>
     </div>
@@ -214,6 +218,8 @@
         let reelsUnsubscribe = null;
         let commentsUnsubscribe = null;
         let loadTimeout = null;
+        let isPlaying = true;
+        let currentVideoElement = null;
 
         // TIMEOUT PROTECTION
         const LOAD_TIMEOUT = 10000; // 10 seconds
@@ -336,7 +342,7 @@
             );
         }
 
-        // Display reels dengan id unik
+        // Display reels dengan perbaikan video handling
         function displayReels() {
             const carousel = document.getElementById('reelsCarousel');
             carousel.innerHTML = '';
@@ -352,7 +358,15 @@
                 
                 const videoId = `video-${reel.id}`;
                 const mediaHtml = reel.mediaType === 'video' 
-                    ? `<video id="${videoId}" src="${reel.mediaUrl}" preload="auto" playsinline style="width: 100%; height: 100%; object-fit: contain;" onerror="handleVideoError(this)"></video>`
+                    ? `<video 
+                        id="${videoId}" 
+                        src="${reel.mediaUrl}" 
+                        preload="metadata" 
+                        playsinline 
+                        muted
+                        style="width: 100%; height: 100%; object-fit: contain;" 
+                        onerror="handleVideoError(this)">
+                      </video>`
                     : `<img src="${reel.mediaUrl}" alt="reel" style="width: 100%; height: 100%; object-fit: contain;" onerror="handleImageError(this)">`
 
                 reelElement.innerHTML = `
@@ -373,17 +387,25 @@
             updateUI();
         }
 
-        // Play current video + pause yang lain
+        // Play current video dengan perbaikan
         function playCurrentVideo() {
             if (allReels.length === 0) return;
 
             const currentReel = allReels[currentReelIndex];
             
-            // Pause semua video
+            // Pause semua video terlebih dahulu
             document.querySelectorAll('video').forEach(video => {
                 video.pause();
-                video.muted = false;
-                video.volume = 1;
+                video.currentTime = 0;
+                // PERBAIKAN: Remove old event listeners
+                video.onended = null;
+                video.onplay = null;
+                video.onpause = null;
+            });
+
+            // Update active reel card
+            document.querySelectorAll('.reel-card').forEach((card, index) => {
+                card.classList.toggle('active', index === currentReelIndex);
             });
 
             // Play video yang aktif
@@ -391,14 +413,61 @@
             const videoElement = document.getElementById(videoId);
             
             if (videoElement && videoElement.tagName === 'VIDEO') {
+                currentVideoElement = videoElement;
+                
+                // Setup event listeners
+                videoElement.onended = () => {
+                    console.log('📽️ Video selesai, memutar ulang');
+                    videoElement.currentTime = 0;
+                    videoElement.play();
+                };
+
+                videoElement.onplay = () => {
+                    isPlaying = true;
+                    updatePlayPauseButton();
+                };
+
+                videoElement.onpause = () => {
+                    isPlaying = false;
+                    updatePlayPauseButton();
+                };
+
+                // Play dengan delay untuk memastikan video siap
                 setTimeout(() => {
                     videoElement.muted = false;
                     videoElement.volume = 1;
-                    videoElement.play().catch(err => console.error('Play error:', err));
+                    videoElement.play().catch(err => {
+                        console.error('⚠️ Play error:', err);
+                        // Fallback: try again
+                        setTimeout(() => videoElement.play().catch(e => console.error('Second play attempt failed:', e)), 500);
+                    });
                 }, 100);
             }
 
             loadComments();
+        }
+
+        // Toggle Play/Pause
+        window.togglePlayPause = function(event) {
+            if (event) event.stopPropagation();
+            
+            if (!currentVideoElement || currentVideoElement.tagName !== 'VIDEO') return;
+
+            if (isPlaying) {
+                currentVideoElement.pause();
+            } else {
+                currentVideoElement.play().catch(err => console.error('Play error:', err));
+            }
+        };
+
+        // Update Play/Pause Button
+        function updatePlayPauseButton() {
+            const icon = document.getElementById('playPauseIcon');
+            if (isPlaying) {
+                icon.textContent = '⏸';
+            } else {
+                icon.textContent = '▶';
+            }
         }
 
         // Update UI untuk like dan comment count
@@ -490,6 +559,30 @@
             panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
         };
 
+        // Share reel
+        window.shareReel = function(event) {
+            event.stopPropagation();
+            const currentReel = allReels[currentReelIndex];
+            if (!currentReel) return;
+
+            const shareText = `Lihat video seru dari ${currentReel.userName}: ${currentReel.caption}`;
+            
+            if (navigator.share) {
+                navigator.share({
+                    title: 'ALVIN Reels',
+                    text: shareText,
+                    url: window.location.href
+                }).catch(err => console.log('Share cancelled:', err));
+            } else {
+                // Fallback: copy to clipboard
+                navigator.clipboard.writeText(shareText).then(() => {
+                    alert('✅ Tautan berhasil disalin ke clipboard');
+                }).catch(() => {
+                    alert('Bagikan video ini: ' + shareText);
+                });
+            }
+        };
+
         // Send comment
         window.sendComment = function(event) {
             if (event) event.stopPropagation();
@@ -542,35 +635,63 @@
             }
         };
 
-        // Next reel
+        // Next reel dengan perbaikan
         window.nextReel = function(event) {
             if (event) event.stopPropagation();
             
-            document.querySelectorAll('video').forEach(video => {
-                video.pause();
-            });
+            // Stop current video
+            if (currentVideoElement) {
+                currentVideoElement.pause();
+                currentVideoElement.onended = null;
+                currentVideoElement.onplay = null;
+                currentVideoElement.onpause = null;
+            }
 
             if (currentReelIndex < allReels.length - 1) {
                 currentReelIndex++;
+                console.log('📽️ Moving to reel:', currentReelIndex + 1, 'of', allReels.length);
                 displayReels();
-                playCurrentVideo();
+                setTimeout(() => playCurrentVideo(), 200);
+            } else {
+                console.log('📽️ Sudah di reel terakhir');
             }
         };
 
-        // Prev reel
+        // Prev reel dengan perbaikan
         window.previousReel = function(event) {
             if (event) event.stopPropagation();
             
-            document.querySelectorAll('video').forEach(video => {
-                video.pause();
-            });
+            // Stop current video
+            if (currentVideoElement) {
+                currentVideoElement.pause();
+                currentVideoElement.onended = null;
+                currentVideoElement.onplay = null;
+                currentVideoElement.onpause = null;
+            }
 
             if (currentReelIndex > 0) {
                 currentReelIndex--;
+                console.log('📽️ Moving to reel:', currentReelIndex + 1, 'of', allReels.length);
                 displayReels();
-                playCurrentVideo();
+                setTimeout(() => playCurrentVideo(), 200);
+            } else {
+                console.log('📽️ Sudah di reel pertama');
             }
         };
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (document.getElementById('uploadModal').style.display === 'flex') return;
+            
+            if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+                previousReel(null);
+            } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+                nextReel(null);
+            } else if (e.key === ' ') {
+                e.preventDefault();
+                togglePlayPause(null);
+            }
+        });
 
         // Open upload modal
         window.openUploadModal = function() {
@@ -729,6 +850,12 @@
             if (confirm('Apakah Anda yakin ingin logout?')) {
                 if (reelsUnsubscribe) reelsUnsubscribe();
                 if (commentsUnsubscribe) commentsUnsubscribe();
+                if (currentVideoElement) {
+                    currentVideoElement.pause();
+                    currentVideoElement.onended = null;
+                    currentVideoElement.onplay = null;
+                    currentVideoElement.onpause = null;
+                }
                 signOut(auth).then(() => {
                     window.location.href = 'index.html';
                 }).catch(err => alert('❌ Error: ' + err.message));
