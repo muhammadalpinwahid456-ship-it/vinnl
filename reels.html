@@ -18,79 +18,101 @@
 
     <!-- REELS CONTAINER -->
     <div id="reelsContainer" class="reels-container" style="display: none;">
-        <!-- HEADER -->
-        <header class="reels-header">
-            <div class="header-left">
-                <h1 class="logo">🎬 ALVIN Reels</h1>
+        <!-- LEFT SIDEBAR -->
+        <div class="reels-left-sidebar">
+            <div class="sidebar-logo">
+                <h1>🎬</h1>
             </div>
-            <div class="header-right">
-                <button class="btn-upload" onclick="openUploadModal()">➕ Upload</button>
-                <a href="profile.html" class="btn-profile">👤 Profile</a>
-                <a href="index.html" class="btn-home">🏠 Home</a>
-                <button class="btn-logout-reels" onclick="logoutReels()">Logout</button>
-            </div>
-        </header>
-
-        <!-- LOADING SPINNER -->
-        <div id="loadingSpinner" class="loading-spinner" style="display: none;">
-            <div class="spinner"></div>
-            <p>Loading reels...</p>
+            <nav class="sidebar-nav">
+                <button class="nav-btn" onclick="openUploadModal()" title="Upload">
+                    <span class="nav-icon">➕</span>
+                    <span class="nav-label">Upload</span>
+                </button>
+                <a href="profile.html" class="nav-btn" title="Profile">
+                    <span class="nav-icon">👤</span>
+                    <span class="nav-label">Profile</span>
+                </a>
+                <a href="index.html" class="nav-btn" title="Home">
+                    <span class="nav-icon">🏠</span>
+                    <span class="nav-label">Home</span>
+                </a>
+                <button class="nav-btn logout-btn" onclick="logoutReels()" title="Logout">
+                    <span class="nav-icon">🚪</span>
+                    <span class="nav-label">Logout</span>
+                </button>
+            </nav>
         </div>
 
-        <!-- ERROR MESSAGE -->
-        <div id="errorMessage" class="error-message" style="display: none;">
-            <div class="error-content">
-                <h2>❌ Error</h2>
-                <p id="errorText"></p>
-                <button onclick="location.reload()">Coba Lagi</button>
-            </div>
-        </div>
+        <!-- MAIN CONTENT -->
+        <div class="reels-content">
+            <!-- HEADER (Mini) -->
+            <header class="reels-header-mini">
+                <div class="header-brand">
+                    <h1 class="logo">ALVIN Reels</h1>
+                </div>
+            </header>
 
-        <!-- MAIN REELS AREA -->
-        <div class="reels-main" id="reelsMain" style="display: none;">
-            <div class="reels-viewer">
-                <div id="reelsCarousel" class="reels-carousel">
-                    <!-- Reels akan ditampilkan di sini -->
-                </div>
-                <div class="reels-controls">
-                    <button class="control-btn prev-btn" onclick="previousReel(event)">❮</button>
-                    <button class="control-btn next-btn" onclick="nextReel(event)">❯</button>
-                </div>
+            <!-- LOADING SPINNER -->
+            <div id="loadingSpinner" class="loading-spinner" style="display: none;">
+                <div class="spinner"></div>
+                <p>Loading reels...</p>
             </div>
 
-            <!-- SIDEBAR ACTIONS -->
-            <div class="reels-sidebar">
-                <div class="action-group">
-                    <button class="action-btn like-btn" id="likeBtn" onclick="toggleLike(event)">
-                        <span class="icon">♡</span>
-                        <span class="count" id="likeCount">0</span>
-                    </button>
-                    <button class="action-btn comment-btn" onclick="toggleComments(event)">
-                        <span class="icon">💬</span>
-                        <span class="count" id="commentCount">0</span>
-                    </button>
+            <!-- ERROR MESSAGE -->
+            <div id="errorMessage" class="error-message" style="display: none;">
+                <div class="error-content">
+                    <h2>❌ Error</h2>
+                    <p id="errorText"></p>
+                    <button onclick="location.reload()">Coba Lagi</button>
                 </div>
             </div>
-        </div>
 
-        <!-- COMMENTS PANEL -->
-        <div id="commentsPanel" class="comments-panel" style="display: none;">
-            <div class="comments-header">
-                <h3>Komentar</h3>
-                <button class="close-comments" onclick="toggleComments(event)">✕</button>
+            <!-- MAIN REELS AREA -->
+            <div class="reels-main" id="reelsMain" style="display: none;">
+                <div class="reels-viewer">
+                    <div id="reelsCarousel" class="reels-carousel">
+                        <!-- Reels akan ditampilkan di sini -->
+                    </div>
+                    <div class="reels-controls">
+                        <button class="control-btn prev-btn" onclick="previousReel(event)">❮</button>
+                        <button class="control-btn next-btn" onclick="nextReel(event)">❯</button>
+                    </div>
+                </div>
+
+                <!-- SIDEBAR ACTIONS (Right) -->
+                <div class="reels-sidebar">
+                    <div class="action-group">
+                        <button class="action-btn like-btn" id="likeBtn" onclick="toggleLike(event)">
+                            <span class="icon">♡</span>
+                            <span class="count" id="likeCount">0</span>
+                        </button>
+                        <button class="action-btn comment-btn" onclick="toggleComments(event)">
+                            <span class="icon">💬</span>
+                            <span class="count" id="commentCount">0</span>
+                        </button>
+                    </div>
+                </div>
             </div>
-            <div class="comments-list" id="commentsList">
-                <!-- Comments akan ditampilkan di sini -->
-            </div>
-            <div class="comment-input-area">
-                <input 
-                    type="text" 
-                    id="commentInput" 
-                    placeholder="Tambahkan komentar..." 
-                    onkeypress="handleCommentKeyPress(event)"
-                    onclick="event.stopPropagation()"
-                >
-                <button onclick="sendComment(event)">Kirim</button>
+
+            <!-- COMMENTS PANEL -->
+            <div id="commentsPanel" class="comments-panel" style="display: none;">
+                <div class="comments-header">
+                    <h3>Komentar</h3>
+                    <button class="close-comments" onclick="toggleComments(event)">✕</button>
+                </div>
+                <div class="comments-list" id="commentsList">
+                    <!-- Comments akan ditampilkan di sini -->
+                </div>
+                <div class="comment-input-area">
+                    <input 
+                        type="text" 
+                        id="commentInput" 
+                        placeholder="Tambahkan komentar..." 
+                        onkeypress="handleCommentKeyPress(event)"
+                        onclick="event.stopPropagation()"
+                    >
+                    <button onclick="sendComment(event)">Kirim</button>
+                </div>
             </div>
         </div>
     </div>
@@ -210,7 +232,7 @@
                 currentUser = user;
                 console.log('✅ User logged in:', user.email);
                 document.getElementById('authCheck').style.display = 'none';
-                document.getElementById('reelsContainer').style.display = 'block';
+                document.getElementById('reelsContainer').style.display = 'flex';
                 document.getElementById('loadingSpinner').style.display = 'flex';
                 
                 // Set timeout untuk mencegah infinite loading
