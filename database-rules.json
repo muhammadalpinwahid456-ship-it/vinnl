@@ -2,10 +2,11 @@
   "rules": {
     "users": {
       ".read": "auth != null",
+      ".write": "auth != null",  
       "$uid": {
         ".read": "auth != null",
         ".write": "$uid === auth.uid",
-        ".validate": "data.exists() ? newData.hasChildren(['fullname', 'email', 'createdAt']) || newData.child('photoURL').exists() || newData.child('description').exists() : newData.hasChildren(['fullname', 'email', 'createdAt'])",
+        ".validate": "newData.hasChildren(['fullname', 'email', 'createdAt']) || newData.hasChildren(['fullname', 'email', 'createdAt', 'photoURL']) || newData.hasChildren(['fullname', 'email', 'createdAt', 'description'])",
         "fullname": {
           ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
         },
