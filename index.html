@@ -354,38 +354,27 @@ window.signUpWithGoogle = async function () {
         const user = result.user;
         currentUserId = user.uid;
 
-        // ✅ PERBAIKAN: Buat data user terlebih dahulu SEBELUM read
-        const userRef = ref(database, 'users/' + user.uid);
-        const snapshot = await get(userRef);
+        console.log('🔐 User dari Google:', user.uid);
         
-        if (!snapshot.exists()) {
-            // User baru - buat data dengan struktur yang benar
-            console.log('🆕 User baru terdeteksi, membuat profil...');
-            
-            const userData = {
-                fullname: user.displayName || user.email.split('@')[0],
-                email: user.email,
-                photoURL: user.photoURL || 'https://via.placeholder.com/40',
-                createdAt: new Date().toISOString(),
-                description: ''
-            };
-            
-            // Set data user
-            await set(userRef, userData);
-            console.log('✅ Profil user baru berhasil dibuat');
-            
-            document.getElementById("profileName").textContent = userData.fullname;
-            document.getElementById("profileEmail").textContent = userData.email;
-            document.getElementById("profileDate").textContent = new Date().toLocaleDateString('id-ID');
-            
-        } else {
-            // User lama - load data yang sudah ada
-            const userData = snapshot.val();
-            document.getElementById("profileName").textContent = userData.fullname || user.displayName;
-            document.getElementById("profileEmail").textContent = userData.email;
-            document.getElementById("profileDate").textContent = new Date(userData.createdAt || new Date()).toLocaleDateString('id-ID');
-            console.log('✅ User lama berhasil login');
-        }
+        // ✅ PERBAIKAN: Set data langsung tanpa try-get terlebih dahulu
+        // Ini menghindari PERMISSION_DENIED error
+        const userRef = ref(database, 'users/' + user.uid);
+        
+        const userData = {
+            fullname: user.displayName || user.email.split('@')[0],
+            email: user.email,
+            photoURL: user.photoURL || 'https://via.placeholder.com/40',
+            createdAt: new Date().toISOString(),
+            description: ''
+        };
+        
+        // Gunakan set() untuk overwrite jika sudah ada, atau create jika baru
+        await set(userRef, userData);
+        console.log('✅ User data berhasil disimpan');
+        
+        document.getElementById("profileName").textContent = userData.fullname;
+        document.getElementById("profileEmail").textContent = userData.email;
+        document.getElementById("profileDate").textContent = new Date().toLocaleDateString('id-ID');
         
         alert("✅ Login Google berhasil!");
         switchTab("profile");
@@ -400,6 +389,9 @@ window.signUpWithGoogle = async function () {
             alert('❌ Proses login dibatalkan');
         } else if (error.code === 'auth/popup-closed-by-user') {
             alert('❌ Pop-up ditutup sebelum proses selesai');
+        } else if (error.code === 'PERMISSION_DENIED') {
+            alert('❌ Error: Database permission denied. Hubungi administrator.');
+            console.error('Database Rules Issue - Silakan periksa database rules di Firebase Console');
         } else {
             alert('❌ Error: ' + error.message);
         }
