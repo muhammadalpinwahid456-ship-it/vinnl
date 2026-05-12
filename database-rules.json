@@ -2,11 +2,10 @@
   "rules": {
     "users": {
       ".read": "auth != null",
-      ".write": "auth != null",  
       "$uid": {
         ".read": "auth != null",
-        ".write": "$uid === auth.uid || (root.child('users').child($uid).exists() === false && auth != null)",
-        ".validate": "newData.hasChildren(['fullname', 'email', 'createdAt']) || newData.hasChildren(['fullname', 'email', 'createdAt', 'photoURL']) || newData.hasChildren(['fullname', 'email', 'createdAt', 'description'])",
+        ".write": "$uid === auth.uid",
+        ".validate": "newData.hasChildren(['email']) && (newData.hasChild('fullname') || newData.hasChild('photoURL'))",
         "fullname": {
           ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
         },
@@ -17,7 +16,7 @@
           ".validate": "newData.isString()"
         },
         "photoURL": {
-          ".validate": "newData.isString()"
+          ".validate": "newData.isString() || newData.val() === null"
         },
         "description": {
           ".validate": "newData.isString() && newData.val().length <= 150"
@@ -32,6 +31,9 @@
           ".validate": "newData.isString()"
         },
         "userName": {
+          ".validate": "newData.isString()"
+        },
+        "userPhoto": {
           ".validate": "newData.isString()"
         },
         "caption": {
