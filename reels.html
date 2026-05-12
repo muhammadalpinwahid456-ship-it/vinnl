@@ -66,13 +66,6 @@
                 <div id="reelsCarousel" class="reels-carousel">
                     <!-- Reels akan ditampilkan di sini -->
                 </div>
-                
-                <!-- PLAY/PAUSE OVERLAY -->
-                <div class="playback-controls" id="playbackControls">
-                    <button class="play-pause-btn" id="playPauseBtn" onclick="togglePlayPause(event)">
-                        <span id="playPauseIcon">⏸</span>
-                    </button>
-                </div>
 
                 <div class="reels-controls">
                     <button class="control-btn prev-btn" onclick="previousReel(event)">❮</button>
@@ -94,6 +87,9 @@
                     <button class="action-btn share-btn" onclick="shareReel(event)">
                         <span class="icon">📤</span>
                         <span class="count">0</span>
+                    </button>
+                    <button class="action-btn play-pause-btn" id="playPauseBtn" onclick="togglePlayPause(event)">
+                        <span id="playPauseIcon">⏸</span>
                     </button>
                 </div>
             </div>
@@ -220,6 +216,7 @@
         let loadTimeout = null;
         let isPlaying = true;
         let currentVideoElement = null;
+        let isTransitioning = false; // FIX: Prevent rapid switching
 
         // TIMEOUT PROTECTION
         const LOAD_TIMEOUT = 10000; // 10 seconds
@@ -230,6 +227,19 @@
             document.getElementById('loadingSpinner').style.display = 'none';
             document.getElementById('errorMessage').style.display = 'flex';
             document.getElementById('errorText').textContent = message;
+        }
+
+        // ===== CLEANUP VIDEO =====
+        function cleanupCurrentVideo() {
+            if (currentVideoElement && currentVideoElement.tagName === 'VIDEO') {
+                currentVideoElement.pause();
+                currentVideoElement.currentTime = 0;
+                currentVideoElement.onended = null;
+                currentVideoElement.onplay = null;
+                currentVideoElement.onpause = null;
+                currentVideoElement.onerror = null;
+            }
+            currentVideoElement = null;
         }
 
         // ===== AUTH CHECK =====
@@ -256,6 +266,7 @@
                 document.getElementById('reelsContainer').style.display = 'none';
                 if (reelsUnsubscribe) reelsUnsubscribe();
                 if (commentsUnsubscribe) commentsUnsubscribe();
+                cleanupCurrentVideo(); // FIX: Cleanup on logout
             }
         });
 
@@ -393,15 +404,8 @@
 
             const currentReel = allReels[currentReelIndex];
             
-            // Pause semua video terlebih dahulu
-            document.querySelectorAll('video').forEach(video => {
-                video.pause();
-                video.currentTime = 0;
-                // PERBAIKAN: Remove old event listeners
-                video.onended = null;
-                video.onplay = null;
-                video.onpause = null;
-            });
+            // Cleanup video lama terlebih dahulu
+            cleanupCurrentVideo();
 
             // Update active reel card
             document.querySelectorAll('.reel-card').forEach((card, index) => {
@@ -415,11 +419,13 @@
             if (videoElement && videoElement.tagName === 'VIDEO') {
                 currentVideoElement = videoElement;
                 
-                // Setup event listeners
+                // FIX: Setup event listeners dengan cleanup
                 videoElement.onended = () => {
                     console.log('📽️ Video selesai, memutar ulang');
-                    videoElement.currentTime = 0;
-                    videoElement.play();
+                    if (videoElement.readyState >= 2) { // Check if video is ready
+                        videoElement.currentTime = 0;
+                        videoElement.play().catch(err => console.error('Replay error:', err));
+                    }
                 };
 
                 videoElement.onplay = () => {
@@ -432,15 +438,25 @@
                     updatePlayPauseButton();
                 };
 
+                videoElement.onerror = (err) => {
+                    console.error('Video error:', err);
+                    handleVideoError(videoElement);
+                };
+
                 // Play dengan delay untuk memastikan video siap
                 setTimeout(() => {
                     videoElement.muted = false;
                     videoElement.volume = 1;
-                    videoElement.play().catch(err => {
-                        console.error('⚠️ Play error:', err);
-                        // Fallback: try again
-                        setTimeout(() => videoElement.play().catch(e => console.error('Second play attempt failed:', e)), 500);
-                    });
+                    const playPromise = videoElement.play();
+                    if (playPromise !== undefined) {
+                        playPromise
+                            .catch(err => {
+                                console.error('⚠️ Play error:', err);
+                                setTimeout(() => {
+                                    videoElement.play().catch(e => console.error('Second play attempt failed:', e));
+                                }, 500);
+                            });
+                    }
                 }, 100);
             }
 
@@ -456,7 +472,10 @@
             if (isPlaying) {
                 currentVideoElement.pause();
             } else {
-                currentVideoElement.play().catch(err => console.error('Play error:', err));
+                const playPromise = currentVideoElement.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(err => console.error('Play error:', err));
+                }
             }
         };
 
@@ -574,7 +593,6 @@
                     url: window.location.href
                 }).catch(err => console.log('Share cancelled:', err));
             } else {
-                // Fallback: copy to clipboard
                 navigator.clipboard.writeText(shareText).then(() => {
                     alert('✅ Tautan berhasil disalin ke clipboard');
                 }).catch(() => {
@@ -635,53 +653,54 @@
             }
         };
 
-        // Next reel dengan perbaikan
+        // Next reel dengan perbaikan FIX
         window.nextReel = function(event) {
             if (event) event.stopPropagation();
             
-            // Stop current video
-            if (currentVideoElement) {
-                currentVideoElement.pause();
-                currentVideoElement.onended = null;
-                currentVideoElement.onplay = null;
-                currentVideoElement.onpause = null;
-            }
+            // FIX: Prevent rapid switching
+            if (isTransitioning) return;
+            isTransitioning = true;
 
             if (currentReelIndex < allReels.length - 1) {
                 currentReelIndex++;
                 console.log('📽️ Moving to reel:', currentReelIndex + 1, 'of', allReels.length);
                 displayReels();
-                setTimeout(() => playCurrentVideo(), 200);
+                setTimeout(() => {
+                    playCurrentVideo();
+                    isTransitioning = false;
+                }, 200);
             } else {
                 console.log('📽️ Sudah di reel terakhir');
+                isTransitioning = false;
             }
         };
 
-        // Prev reel dengan perbaikan
+        // Prev reel dengan perbaikan FIX
         window.previousReel = function(event) {
             if (event) event.stopPropagation();
             
-            // Stop current video
-            if (currentVideoElement) {
-                currentVideoElement.pause();
-                currentVideoElement.onended = null;
-                currentVideoElement.onplay = null;
-                currentVideoElement.onpause = null;
-            }
+            // FIX: Prevent rapid switching
+            if (isTransitioning) return;
+            isTransitioning = true;
 
             if (currentReelIndex > 0) {
                 currentReelIndex--;
                 console.log('📽️ Moving to reel:', currentReelIndex + 1, 'of', allReels.length);
                 displayReels();
-                setTimeout(() => playCurrentVideo(), 200);
+                setTimeout(() => {
+                    playCurrentVideo();
+                    isTransitioning = false;
+                }, 200);
             } else {
                 console.log('📽️ Sudah di reel pertama');
+                isTransitioning = false;
             }
         };
 
         // Keyboard navigation
         document.addEventListener('keydown', (e) => {
             if (document.getElementById('uploadModal').style.display === 'flex') return;
+            if (isTransitioning) return; // FIX: Prevent rapid key presses
             
             if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
                 previousReel(null);
@@ -850,12 +869,7 @@
             if (confirm('Apakah Anda yakin ingin logout?')) {
                 if (reelsUnsubscribe) reelsUnsubscribe();
                 if (commentsUnsubscribe) commentsUnsubscribe();
-                if (currentVideoElement) {
-                    currentVideoElement.pause();
-                    currentVideoElement.onended = null;
-                    currentVideoElement.onplay = null;
-                    currentVideoElement.onpause = null;
-                }
+                cleanupCurrentVideo(); // FIX: Cleanup on logout
                 signOut(auth).then(() => {
                     window.location.href = 'index.html';
                 }).catch(err => alert('❌ Error: ' + err.message));
@@ -888,81 +902,6 @@
             errorDiv.innerHTML = '❌ Gambar gagal dimuat';
             imgElement.parentNode.appendChild(errorDiv);
         };
-        // === TIKTOK-STYLE REELS SCROLL ===
-function getActiveReelIndex() {
-    const carousel = document.getElementById('reelsCarousel');
-    const cards = Array.from(carousel.getElementsByClassName('reel-card'));
-    let bestIdx = 0, bestVal = Infinity;
-    cards.forEach((card, idx) => {
-        const rect = card.getBoundingClientRect();
-        const center = rect.top + rect.height / 2;
-        const dist = Math.abs(center - window.innerHeight / 2);
-        if (dist < bestVal) {
-            bestVal = dist;
-            bestIdx = idx;
-        }
-    });
-    return bestIdx;
-}
-
-function playActiveReelVideo() {
-    const carousel = document.getElementById('reelsCarousel');
-    const cards = Array.from(carousel.getElementsByClassName('reel-card'));
-    cards.forEach((card, idx) => {
-        const video = card.querySelector('video');
-        if (video) {
-            if(idx === currentReelIndex){
-                video.play().catch(()=>{});
-                video.muted = false;
-                video.volume = 1;
-            }else{
-                video.pause();
-            }
-        }
-    });
-}
-
-function onReelsScroll(evt){
-    const idx = getActiveReelIndex();
-    if(idx !== currentReelIndex && idx < allReels.length){
-        currentReelIndex = idx;
-        updateUI();
-        playActiveReelVideo();
-        loadComments();
-    }
-}
-
-function setupReelSnapScroll() {
-    const carousel = document.getElementById('reelsCarousel');
-    if (!carousel.dataset.snapAdded) {
-      carousel.addEventListener('scroll', onReelsScroll, { passive: true });
-      carousel.dataset.snapAdded = '1';
-    }
-}
-
-function renderSnapReels() {
-    setupReelSnapScroll();
-    setTimeout(() => {
-        playActiveReelVideo();
-        const activeCard = document.getElementsByClassName('reel-card')[currentReelIndex];
-        if (activeCard) activeCard.scrollIntoView({behavior: 'auto'});
-    }, 350);
-}
-
-// Keyboard navigasi ala tiktok
-document.addEventListener('keydown', function(e) {
-    if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
-    if(e.key === 'ArrowUp'){
-        const nextIdx = Math.max(currentReelIndex - 1, 0);
-        const cards = document.getElementsByClassName('reel-card');
-        if(cards[nextIdx]) cards[nextIdx].scrollIntoView({behavior: 'smooth'});
-    }
-    if(e.key === 'ArrowDown'){
-        const nextIdx = Math.min(currentReelIndex + 1, allReels.length - 1);
-        const cards = document.getElementsByClassName('reel-card');
-        if(cards[nextIdx]) cards[nextIdx].scrollIntoView({behavior: 'smooth'});
-    }
-});
     </script>
 </body>
 </html>
