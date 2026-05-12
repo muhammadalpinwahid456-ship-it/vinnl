@@ -279,32 +279,17 @@ const provider = new GoogleAuthProvider();
 
 let currentUserId = null;
 
-// ================= HELPER FUNCTION =================
-function formatDate(dateString) {
-    if (!dateString) return new Date().toLocaleDateString('id-ID');
-    try {
-        return new Date(dateString).toLocaleDateString('id-ID');
-    } catch (e) {
-        return new Date().toLocaleDateString('id-ID');
-    }
-}
-
 // ================= REGISTER =================
 document.getElementById("registerForm").addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    const name = document.getElementById("registerName").value.trim();
-    const email = document.getElementById("registerEmail").value.trim();
+    const name = document.getElementById("registerName").value;
+    const email = document.getElementById("registerEmail").value;
     const password = document.getElementById("registerPassword").value;
     const confirmPassword = document.getElementById("registerConfirmPassword").value;
 
     if (password !== confirmPassword) {
-        alert("❌ Password tidak sama!");
-        return;
-    }
-
-    if (password.length < 6) {
-        alert("❌ Password minimal 6 karakter!");
+        alert("Password tidak sama!");
         return;
     }
 
@@ -313,32 +298,23 @@ document.getElementById("registerForm").addEventListener("submit", async (e) => 
         const user = userCredential.user;
         currentUserId = user.uid;
 
-        // Simpan data user ke database dengan format yang benar
-        const userData = {
-            fullname: name || 'User',
+        // Simpan data user ke database
+        await set(ref(database, 'users/' + user.uid), {
+            fullname: name,
             email: email,
             createdAt: new Date().toISOString()
-        };
+        });
 
-        await set(ref(database, 'users/' + user.uid), userData);
+        alert("Akun berhasil dibuat!");
 
-        alert("✅ Akun berhasil dibuat!");
-
-        document.getElementById("profileName").textContent = userData.fullname;
-        document.getElementById("profileEmail").textContent = userData.email;
-        document.getElementById("profileDate").textContent = formatDate(userData.createdAt);
+        document.getElementById("profileName").textContent = name;
+        document.getElementById("profileEmail").textContent = email;
+        document.getElementById("profileDate").textContent = new Date().toLocaleDateString('id-ID');
 
         switchTab("profile");
 
     } catch (error) {
-        console.error('Register error:', error);
-        if (error.code === 'auth/email-already-in-use') {
-            alert("❌ Email sudah terdaftar");
-        } else if (error.code === 'auth/weak-password') {
-            alert("❌ Password terlalu lemah");
-        } else {
-            alert("❌ Error: " + error.message);
-        }
+        alert(error.message);
     }
 });
 
@@ -346,7 +322,7 @@ document.getElementById("registerForm").addEventListener("submit", async (e) => 
 document.getElementById("loginForm").addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    const email = document.getElementById("loginEmail").value.trim();
+    const email = document.getElementById("loginEmail").value;
     const password = document.getElementById("loginPassword").value;
 
     try {
@@ -359,67 +335,57 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
         const snapshot = await get(userRef);
         if (snapshot.exists()) {
             const userData = snapshot.val();
-            document.getElementById("profileName").textContent = userData.fullname || 'User';
+            document.getElementById("profileName").textContent = userData.fullname;
             document.getElementById("profileEmail").textContent = userData.email;
-            document.getElementById("profileDate").textContent = formatDate(userData.createdAt);
+            document.getElementById("profileDate").textContent = new Date(userData.createdAt).toLocaleDateString('id-ID');
         }
         
-        alert("✅ Login berhasil!");
+        alert("Login berhasil!");
         switchTab("profile");
     } catch (error) {
-        console.error('Login error:', error);
-        alert("❌ " + error.message);
+        alert(error.message);
     }
 });
 
-// ================= LOGIN GOOGLE (PERBAIKAN) =================
+// ================= LOGIN GOOGLE (DIPERBAIKI) =================
 window.signUpWithGoogle = async function () {
     try {
-        console.log('🔄 Starting Google Sign-In...');
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
         currentUserId = user.uid;
 
-        console.log('✅ Google Sign-In success:', user.email);
-
-        // Cek apakah user sudah ada di database
+        // ✅ PERBAIKAN: Buat data user terlebih dahulu SEBELUM read
         const userRef = ref(database, 'users/' + user.uid);
         const snapshot = await get(userRef);
         
-        let userData;
-        
         if (!snapshot.exists()) {
-            // User BARU - buat data baru
-            console.log('📝 Creating new user data...');
-            userData = {
-                fullname: user.displayName || user.email.split('@')[0] || 'User',
-                email: user.email || '',
-                photoURL: user.photoURL || '',
-                createdAt: new Date().toISOString()
+            // User baru - buat data dengan struktur yang benar
+            console.log('🆕 User baru terdeteksi, membuat profil...');
+            
+            const userData = {
+                fullname: user.displayName || user.email.split('@')[0],
+                email: user.email,
+                photoURL: user.photoURL || 'https://via.placeholder.com/40',
+                createdAt: new Date().toISOString(),
+                description: ''
             };
             
-            try {
-                await set(userRef, userData);
-                console.log('✅ User data saved successfully');
-            } catch (dbError) {
-                console.error('❌ Error saving user to database:', dbError);
-                alert('❌ Gagal menyimpan data user: ' + dbError.message);
-                return;
-            }
+            // Set data user
+            await set(userRef, userData);
+            console.log('✅ Profil user baru berhasil dibuat');
+            
+            document.getElementById("profileName").textContent = userData.fullname;
+            document.getElementById("profileEmail").textContent = userData.email;
+            document.getElementById("profileDate").textContent = new Date().toLocaleDateString('id-ID');
+            
         } else {
-            // User LAMA - load data existing
-            console.log('📂 User already exists, loading data...');
-            userData = snapshot.val();
+            // User lama - load data yang sudah ada
+            const userData = snapshot.val();
+            document.getElementById("profileName").textContent = userData.fullname || user.displayName;
+            document.getElementById("profileEmail").textContent = userData.email;
+            document.getElementById("profileDate").textContent = new Date(userData.createdAt || new Date()).toLocaleDateString('id-ID');
+            console.log('✅ User lama berhasil login');
         }
-        
-        // Update UI dengan data yang aman
-        const displayName = userData.fullname || 'User';
-        const displayEmail = userData.email || user.email || '';
-        const displayDate = formatDate(userData.createdAt);
-        
-        document.getElementById("profileName").textContent = displayName;
-        document.getElementById("profileEmail").textContent = displayEmail;
-        document.getElementById("profileDate").textContent = displayDate;
         
         alert("✅ Login Google berhasil!");
         switchTab("profile");
@@ -427,13 +393,13 @@ window.signUpWithGoogle = async function () {
     } catch (error) {
         console.error('❌ Google Sign-In error:', error);
         
-        // Handle specific errors
-        if (error.code === 'auth/popup-closed-by-user') {
-            console.log('⚠️ User closed the popup');
-        } else if (error.code === 'auth/popup-blocked') {
-            alert('❌ Popup diblokir. Izinkan popup untuk browser ini.');
+        // Pesan error yang lebih informatif
+        if (error.code === 'auth/popup-blocked') {
+            alert('❌ Pop-up terblokir. Izinkan pop-up di browser Anda');
         } else if (error.code === 'auth/cancelled-popup-request') {
-            console.log('⚠️ Popup request cancelled');
+            alert('❌ Proses login dibatalkan');
+        } else if (error.code === 'auth/popup-closed-by-user') {
+            alert('❌ Pop-up ditutup sebelum proses selesai');
         } else {
             alert('❌ Error: ' + error.message);
         }
@@ -444,7 +410,7 @@ window.signUpWithGoogle = async function () {
 window.logout = async function () {
     if (confirm('Apakah Anda yakin ingin logout?')) {
         await signOut(auth);
-        alert("✅ Logout berhasil!");
+        alert("Logout berhasil!");
         currentUserId = null;
         switchTab("login");
     }
@@ -456,9 +422,11 @@ window.toggleEditProfile = function() {
     const editProfileTab = document.getElementById("editProfileTab");
     
     if (editProfileTab.classList.contains("active")) {
+        // Kembali ke profile
         profileTab.classList.add("active");
         editProfileTab.classList.remove("active");
     } else {
+        // Buka edit profile
         document.getElementById("editName").value = document.getElementById("profileName").textContent;
         document.getElementById("editEmail").value = document.getElementById("profileEmail").textContent;
         profileTab.classList.remove("active");
@@ -494,6 +462,7 @@ if (editProfileForm) {
             console.log('🔄 Updating profile for user:', currentUserId);
             const userRef = ref(database, 'users/' + currentUserId);
             
+            // Gunakan update() untuk perubahan sebagian
             await update(userRef, {
                 fullname: newName
             });
@@ -502,6 +471,7 @@ if (editProfileForm) {
             document.getElementById("profileName").textContent = newName;
             alert("✅ Profil berhasil diperbarui!");
             
+            // Tunggu 1 detik, kemudian kembali ke profile tab
             setTimeout(() => {
                 toggleEditProfile();
             }, 1000);
