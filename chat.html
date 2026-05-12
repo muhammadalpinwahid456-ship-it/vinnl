@@ -158,6 +158,8 @@
         let allUsers = [];
         let currentUserName = '';
         let messagesUnsubscribe = null;
+        let unreadCounts = {}; // Store unread message counts
+        let usersUnsubscribeList = []; // Store all user listeners
 
         // ===== HELPER FUNCTIONS =====
         function generateChatId(userId1, userId2) {
@@ -177,6 +179,85 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // ===== UPDATE UNREAD COUNT =====
+        function updateUnreadCount(userId, count) {
+            unreadCounts[userId] = count;
+            updateUserItemBadge(userId, count);
+            updateModalUserBadge(userId, count);
+            updateBrowserTitle();
+        }
+
+        // ===== UPDATE USER ITEM BADGE =====
+        function updateUserItemBadge(userId, count) {
+            const userItem = document.querySelector(`[data-user-id="${userId}"]`);
+            if (userItem) {
+                let badge = userItem.querySelector('.unread-badge');
+                if (count > 0) {
+                    if (!badge) {
+                        badge = document.createElement('span');
+                        badge.className = 'unread-badge';
+                        userItem.appendChild(badge);
+                    }
+                    badge.textContent = count > 99 ? '99+' : count;
+                    badge.style.display = 'block';
+                } else if (badge) {
+                    badge.style.display = 'none';
+                }
+            }
+        }
+
+        // ===== UPDATE MODAL USER BADGE =====
+        function updateModalUserBadge(userId, count) {
+            const modalUserItem = document.querySelector(`.modal-user-item[data-user-id="${userId}"]`);
+            if (modalUserItem) {
+                let badge = modalUserItem.querySelector('.unread-badge');
+                if (count > 0) {
+                    if (!badge) {
+                        badge = document.createElement('span');
+                        badge.className = 'unread-badge';
+                        modalUserItem.appendChild(badge);
+                    }
+                    badge.textContent = count > 99 ? '99+' : count;
+                    badge.style.display = 'block';
+                } else if (badge) {
+                    badge.style.display = 'none';
+                }
+            }
+        }
+
+        // ===== UPDATE BROWSER TITLE WITH TOTAL UNREAD =====
+        function updateBrowserTitle() {
+            const totalUnread = Object.values(unreadCounts).reduce((sum, count) => sum + count, 0);
+            if (totalUnread > 0) {
+                document.title = `(${totalUnread}) 💬 ALVIN Chat`;
+            } else {
+                document.title = '💬 ALVIN Chat';
+            }
+        }
+
+        // ===== COUNT UNREAD MESSAGES =====
+        function countUnreadMessages(userId) {
+            if (!selectedUserId || selectedUserId !== userId) {
+                const chatId = generateChatId(currentUser.uid, userId);
+                const messagesRef = ref(database, `chats/${chatId}/messages`);
+                
+                get(messagesRef).then((snapshot) => {
+                    let unreadCount = 0;
+                    if (snapshot.exists()) {
+                        snapshot.forEach((child) => {
+                            const msg = child.val();
+                            if (msg.senderId !== currentUser.uid && !msg.isRead) {
+                                unreadCount++;
+                            }
+                        });
+                    }
+                    updateUnreadCount(userId, unreadCount);
+                }).catch(err => console.error('Error counting unread:', err));
+            } else {
+                updateUnreadCount(userId, 0);
+            }
         }
 
         // ===== PROFILE PHOTO UPLOAD =====
@@ -270,11 +351,15 @@
             });
         }
 
-        // Load semua user (PERBAIKAN: Better error handling)
+        // Load semua user (PERBAIKAN: Better error handling + Unread tracking)
         function loadAllUsers() {
             const usersRef = ref(database, 'users');
             onValue(usersRef, (snapshot) => {
                 allUsers = [];
+                // Cleanup previous listeners
+                usersUnsubscribeList.forEach(unsub => unsub());
+                usersUnsubscribeList = [];
+                
                 if (snapshot.exists()) {
                     snapshot.forEach((childSnapshot) => {
                         const userId = childSnapshot.key;
@@ -287,6 +372,9 @@
                                     email: userData.email,
                                     photoURL: userData.photoURL || 'https://via.placeholder.com/40'
                                 });
+                                
+                                // Setup unread message listener untuk setiap user
+                                setupUnreadListener(userId);
                             }
                         }
                     });
@@ -299,6 +387,29 @@
                 console.error('❌ Error loading users:', error);
                 alert('Error memuat pengguna: ' + error.message);
             });
+        }
+
+        // ===== SETUP UNREAD MESSAGE LISTENER =====
+        function setupUnreadListener(userId) {
+            const chatId = generateChatId(currentUser.uid, userId);
+            const messagesRef = ref(database, `chats/${chatId}/messages`);
+            
+            const unsubscribe = onValue(messagesRef, (snapshot) => {
+                let unreadCount = 0;
+                if (snapshot.exists()) {
+                    snapshot.forEach((child) => {
+                        const msg = child.val();
+                        if (msg.senderId !== currentUser.uid && !msg.isRead) {
+                            unreadCount++;
+                        }
+                    });
+                }
+                updateUnreadCount(userId, unreadCount);
+            }, (error) => {
+                console.error(`Error listening to messages for ${userId}:`, error);
+            });
+            
+            usersUnsubscribeList.push(unsubscribe);
         }
 
         // Display users di sidebar
@@ -314,13 +425,21 @@
             allUsers.forEach(user => {
                 const userElement = document.createElement('div');
                 userElement.className = 'user-item';
+                userElement.setAttribute('data-user-id', user.uid);
                 userElement.onclick = () => selectUser(user.uid, user.name, user.photoURL);
+                
+                const unreadCount = unreadCounts[user.uid] || 0;
+                const badgeHtml = unreadCount > 0 
+                    ? `<span class="unread-badge" style="display: block;">${unreadCount > 99 ? '99+' : unreadCount}</span>` 
+                    : `<span class="unread-badge" style="display: none;"></span>`;
+                
                 userElement.innerHTML = `
                     <img src="${user.photoURL}" class="user-item-avatar" alt="${escapeHtml(user.name)}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover;">
                     <div class="user-item-info">
                         <h4>${escapeHtml(user.name)}</h4>
                         <p class="user-email">${escapeHtml(user.email)}</p>
                     </div>
+                    ${badgeHtml}
                 `;
                 usersList.appendChild(userElement);
             });
@@ -342,6 +461,8 @@
             document.getElementById('messagesArea').innerHTML = ''; // Clear previous messages
             loadMessages();
             markAsRead(generateChatId(currentUser.uid, selectedUserId));
+            updateUnreadCount(userId, 0); // Clear unread count
+            updateBrowserTitle(); // Update browser title
         };
 
         // Load messages (PERBAIKAN: Unsubscribe sebelum subscribe baru)
@@ -488,6 +609,7 @@
             document.getElementById('chatWindow').style.display = 'none';
             document.getElementById('welcomeMessage').style.display = 'flex';
             document.getElementById('messageInput').value = '';
+            updateBrowserTitle();
         };
 
         // Search users
@@ -509,13 +631,21 @@
             filtered.forEach(user => {
                 const userElement = document.createElement('div');
                 userElement.className = 'user-item';
+                userElement.setAttribute('data-user-id', user.uid);
                 userElement.onclick = () => selectUser(user.uid, user.name, user.photoURL);
+                
+                const unreadCount = unreadCounts[user.uid] || 0;
+                const badgeHtml = unreadCount > 0 
+                    ? `<span class="unread-badge" style="display: block;">${unreadCount > 99 ? '99+' : unreadCount}</span>` 
+                    : `<span class="unread-badge" style="display: none;"></span>`;
+                
                 userElement.innerHTML = `
                     <img src="${user.photoURL}" class="user-item-avatar" alt="${escapeHtml(user.name)}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover;">
                     <div class="user-item-info">
                         <h4>${escapeHtml(user.name)}</h4>
                         <p class="user-email">${escapeHtml(user.email)}</p>
                     </div>
+                    ${badgeHtml}
                 `;
                 usersList.appendChild(userElement);
             });
@@ -546,16 +676,24 @@
             allUsers.forEach(user => {
                 const userElement = document.createElement('div');
                 userElement.className = 'modal-user-item';
+                userElement.setAttribute('data-user-id', user.uid);
                 userElement.onclick = () => {
                     selectUser(user.uid, user.name, user.photoURL);
                     closeNewChat();
                 };
+                
+                const unreadCount = unreadCounts[user.uid] || 0;
+                const badgeHtml = unreadCount > 0 
+                    ? `<span class="unread-badge" style="display: block;">${unreadCount > 99 ? '99+' : unreadCount}</span>` 
+                    : `<span class="unread-badge" style="display: none;"></span>`;
+                
                 userElement.innerHTML = `
                     <img src="${user.photoURL}" class="user-item-avatar" alt="${escapeHtml(user.name)}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover;">
                     <div class="user-item-info">
                         <h4>${escapeHtml(user.name)}</h4>
                         <p>${escapeHtml(user.email)}</p>
                     </div>
+                    ${badgeHtml}
                 `;
                 modalUsersList.appendChild(userElement);
             });
@@ -580,16 +718,24 @@
             filtered.forEach(user => {
                 const userElement = document.createElement('div');
                 userElement.className = 'modal-user-item';
+                userElement.setAttribute('data-user-id', user.uid);
                 userElement.onclick = () => {
                     selectUser(user.uid, user.name, user.photoURL);
                     closeNewChat();
                 };
+                
+                const unreadCount = unreadCounts[user.uid] || 0;
+                const badgeHtml = unreadCount > 0 
+                    ? `<span class="unread-badge" style="display: block;">${unreadCount > 99 ? '99+' : unreadCount}</span>` 
+                    : `<span class="unread-badge" style="display: none;"></span>`;
+                
                 userElement.innerHTML = `
                     <img src="${user.photoURL}" class="user-item-avatar" alt="${escapeHtml(user.name)}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover;">
                     <div class="user-item-info">
                         <h4>${escapeHtml(user.name)}</h4>
                         <p>${escapeHtml(user.email)}</p>
                     </div>
+                    ${badgeHtml}
                 `;
                 modalUsersList.appendChild(userElement);
             });
@@ -602,6 +748,10 @@
                 if (messagesUnsubscribe) {
                     messagesUnsubscribe();
                 }
+                // Cleanup unread listeners
+                usersUnsubscribeList.forEach(unsub => unsub());
+                usersUnsubscribeList = [];
+                
                 signOut(auth).then(() => {
                     window.location.href = 'index.html';
                 }).catch((error) => {
