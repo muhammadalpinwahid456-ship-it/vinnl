@@ -18,72 +18,71 @@ body {
     background: #0d1117;
 }
 
-/* ===== SIDEBAR NAVIGATION ===== */
+/* ===== SIDEBAR NAVIGATION (LEFT) ===== */
 .reels-sidebar-nav {
-    width: 80px;
+    width: 240px;
     background: linear-gradient(180deg, #1a1f3a 0%, #0f1527 100%);
     border-right: 1px solid #2d333b;
     display: flex;
     flex-direction: column;
-    align-items: center;
     padding: 20px 0;
-    gap: 20px;
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
+    overflow-y: auto;
 }
 
 .nav-logo {
     font-size: 1.8rem;
-    margin-bottom: 10px;
+    padding: 0 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.nav-logo h2 {
+    font-size: 1.2rem;
+    margin: 0;
 }
 
 .nav-buttons {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
+    padding: 0 12px;
     flex: 1;
 }
 
 .nav-btn {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 6px;
-    width: 60px;
-    height: 60px;
+    gap: 16px;
+    width: 100%;
+    padding: 12px 16px;
     border: none;
     background: rgba(59, 130, 246, 0.1);
-    border-radius: 12px;
+    border-radius: 8px;
     cursor: pointer;
     transition: all 0.2s ease;
     color: #e0e6ed;
-    font-size: 0.75rem;
-    font-weight: 600;
+    font-size: 0.95rem;
+    font-weight: 500;
+    text-align: left;
 }
 
 .nav-btn:hover {
     background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-}
-
-.nav-btn:active {
-    transform: translateY(0);
+    transform: translateX(4px);
 }
 
 .nav-icon {
-    font-size: 1.5rem;
-}
-
-.nav-label {
-    font-size: 0.7rem;
-    text-align: center;
-    line-height: 1;
+    font-size: 1.3rem;
+    min-width: 24px;
 }
 
 .logout-btn {
     background: rgba(239, 68, 68, 0.1);
     margin-top: auto;
+    margin-bottom: 12px;
 }
 
 .logout-btn:hover {
@@ -100,9 +99,9 @@ body {
 
 /* LOADING SPINNER */
 .loading-spinner {
-    position: fixed;
+    position: absolute;
     top: 0;
-    left: 80px;
+    left: 240px;
     right: 0;
     bottom: 0;
     background: rgba(13, 17, 23, 0.95);
@@ -139,9 +138,9 @@ body {
 
 /* ERROR MESSAGE */
 .error-message {
-    position: fixed;
+    position: absolute;
     top: 0;
-    left: 80px;
+    left: 240px;
     right: 0;
     bottom: 0;
     background: rgba(13, 17, 23, 0.95);
@@ -208,22 +207,19 @@ body {
     background: #000;
 }
 
-.reels-carousel-wrapper {
+.reels-carousel {
     width: 100%;
     height: 100%;
-    overflow: hidden;
-}
-
-.reels-carousel {
     display: flex;
-    height: 100%;
-    scroll-snap-type: x mandatory;
+    flex-direction: column;
+    scroll-snap-type: y mandatory;
     scroll-behavior: smooth;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .reel-card {
-    min-width: 100%;
-    height: 100%;
+    min-height: 100%;
     display: flex;
     position: relative;
     scroll-snap-align: start;
@@ -260,18 +256,18 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 8px;
+    margin-bottom: 12px;
 }
 
 .reel-user img {
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     object-fit: cover;
 }
 
 .reel-user h4 {
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     font-weight: 600;
 }
 
@@ -291,64 +287,24 @@ body {
     text-align: center;
 }
 
-/* CONTROLS */
-.reels-controls {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    padding: 0 20px;
-    pointer-events: none;
-}
-
-.control-btn {
-    background: rgba(255, 255, 255, 0.2);
-    border: none;
-    color: white;
-    font-size: 2rem;
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    pointer-events: all;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    backdrop-filter: blur(10px);
-}
-
-.control-btn:hover {
-    background: rgba(255, 255, 255, 0.3);
-    transform: scale(1.1);
-}
-
-/* ===== ACTIONS SIDEBAR ===== */
+/* ===== RIGHT SIDEBAR ACTIONS ===== */
 .reels-actions-sidebar {
     position: absolute;
     right: 20px;
-    bottom: 100px;
+    top: 50%;
+    transform: translateY(-50%);
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 20px;
     z-index: 10;
-}
-
-.action-group {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
 }
 
 .action-btn {
     background: rgba(255, 255, 255, 0.15);
     border: none;
     color: white;
-    width: 50px;
-    height: 50px;
+    width: 56px;
+    height: 56px;
     border-radius: 50%;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -371,24 +327,14 @@ body {
 }
 
 .action-btn .icon {
-    font-size: 1.5rem;
+    font-size: 1.6rem;
     line-height: 1;
 }
 
 .action-btn .count {
     font-size: 0.7rem;
-    margin-top: 2px;
+    margin-top: 4px;
     line-height: 1;
-}
-
-.play-pause-btn {
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
-    width: 56px;
-    height: 56px;
-}
-
-.play-pause-btn:hover {
-    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.5) !important;
 }
 
 /* ===== COMMENTS PANEL ===== */
@@ -397,7 +343,7 @@ body {
     right: 0;
     top: 0;
     bottom: 0;
-    width: 350px;
+    width: 320px;
     background: #161b22;
     border-left: 1px solid #2d333b;
     display: flex;
@@ -749,70 +695,124 @@ body {
 }
 
 /* ===== SCROLLBAR ===== */
-.comments-list::-webkit-scrollbar {
+.comments-list::-webkit-scrollbar,
+.reels-carousel::-webkit-scrollbar {
     width: 6px;
 }
 
-.comments-list::-webkit-scrollbar-track {
+.comments-list::-webkit-scrollbar-track,
+.reels-carousel::-webkit-scrollbar-track {
     background: transparent;
 }
 
-.comments-list::-webkit-scrollbar-thumb {
+.comments-list::-webkit-scrollbar-thumb,
+.reels-carousel::-webkit-scrollbar-thumb {
     background: #2d333b;
     border-radius: 3px;
 }
 
-.comments-list::-webkit-scrollbar-thumb:hover {
+.comments-list::-webkit-scrollbar-thumb:hover,
+.reels-carousel::-webkit-scrollbar-thumb:hover {
     background: #3b82f6;
 }
 
 /* ===== RESPONSIVE ===== */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .reels-sidebar-nav {
-        width: 70px;
+        width: 200px;
     }
 
     .nav-btn {
-        width: 55px;
-        height: 55px;
+        font-size: 0.85rem;
+        padding: 10px 12px;
+    }
+
+    .nav-icon {
+        font-size: 1.1rem;
+    }
+
+    .comments-panel {
+        width: 280px;
+    }
+}
+
+@media (max-width: 768px) {
+    .reels-sidebar-nav {
+        width: 70px;
+        padding: 16px 8px;
+    }
+
+    .nav-logo {
+        padding: 0 8px;
+        margin-bottom: 16px;
+        justify-content: center;
+    }
+
+    .nav-logo h2 {
+        display: none;
+    }
+
+    .nav-btn {
+        width: 54px;
+        height: 54px;
+        padding: 0;
+        border-radius: 8px;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 0.7rem;
     }
 
     .nav-icon {
         font-size: 1.3rem;
     }
 
-    .nav-label {
-        font-size: 0.65rem;
+    .comments-panel {
+        width: 100%;
+        bottom: 0;
+        top: auto;
+        right: auto;
+        max-height: 50vh;
+        border-left: none;
+        border-top: 1px solid #2d333b;
+    }
+
+    .reel-info {
+        padding: 12px;
+    }
+
+    .reel-user {
+        gap: 6px;
+    }
+
+    .reel-user img {
+        width: 32px;
+        height: 32px;
+    }
+
+    .reel-user h4 {
+        font-size: 0.85rem;
+    }
+
+    .reel-caption {
+        font-size: 0.8rem;
     }
 
     .reels-actions-sidebar {
         right: 12px;
-        bottom: 80px;
+        gap: 16px;
     }
 
     .action-btn {
-        width: 45px;
-        height: 45px;
+        width: 48px;
+        height: 48px;
     }
 
     .action-btn .icon {
-        font-size: 1.3rem;
+        font-size: 1.4rem;
     }
 
-    .control-btn {
-        width: 40px;
-        height: 40px;
-        font-size: 1.5rem;
-    }
-
-    .comments-panel {
-        width: 100%;
-        right: auto;
-        top: auto;
-        bottom: 0;
-        max-height: 50vh;
-        border-left: none;
-        border-top: 1px solid #2d333b;
+    .action-btn .count {
+        font-size: 0.65rem;
     }
 
     .modal-content {
@@ -824,67 +824,47 @@ body {
     .reels-sidebar-nav {
         width: 60px;
         padding: 12px 0;
-        gap: 10px;
+    }
+
+    .nav-logo {
+        margin-bottom: 12px;
     }
 
     .nav-btn {
         width: 50px;
         height: 50px;
-        gap: 4px;
+        gap: 2px;
+        font-size: 0.65rem;
     }
 
     .nav-icon {
         font-size: 1.2rem;
     }
 
-    .nav-label {
-        font-size: 0.6rem;
-    }
-
     .reels-actions-sidebar {
         right: 8px;
-        bottom: 60px;
+        gap: 12px;
     }
 
     .action-btn {
-        width: 42px;
-        height: 42px;
-    }
-
-    .play-pause-btn {
-        width: 48px;
-        height: 48px;
+        width: 44px;
+        height: 44px;
     }
 
     .action-btn .icon {
-        font-size: 1.1rem;
-    }
-
-    .action-btn .count {
-        font-size: 0.65rem;
-    }
-
-    .control-btn {
-        width: 35px;
-        height: 35px;
         font-size: 1.2rem;
     }
 
-    .reel-info {
-        padding: 12px;
-    }
-
-    .reel-caption {
-        font-size: 0.8rem;
+    .action-btn .count {
+        font-size: 0.6rem;
     }
 
     .comments-panel {
-        width: 100%;
         max-height: 60vh;
     }
 
-    .modal-content {
-        width: 98%;
-        padding: 16px;
+    .reel-user img {
+        width: 28px;
+        height: 28px;
     }
 }
