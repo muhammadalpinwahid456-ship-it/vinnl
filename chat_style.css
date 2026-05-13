@@ -14,9 +14,84 @@ body {
 
 .chat-container {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     height: 100vh;
     background: #0d1117;
+}
+
+/* LEFT NAV */
+.left-nav {
+    width: 72px;
+    background: #0d1117;
+    border-right: 1px solid #2d333b;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 0;
+    flex-shrink: 0;
+    z-index: 100;
+}
+
+.left-nav-logo {
+    font-size: 1.6rem;
+    margin-bottom: 20px;
+    padding: 8px;
+}
+
+.left-nav-links {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    width: 100%;
+}
+
+.nav-btn {
+    background: none;
+    border: none;
+    color: #8b949e;
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    transition: all 0.2s ease;
+    font-size: 0.6rem;
+    font-weight: 500;
+    padding: 4px;
+}
+
+.nav-btn:hover {
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+}
+
+.nav-btn-active {
+    color: #3b82f6;
+    background: rgba(59, 130, 246, 0.15);
+}
+
+.nav-btn-logout {
+    color: #ef4444;
+    margin-top: 8px;
+}
+
+.nav-btn-logout:hover {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+}
+
+/* MAIN CONTENT COLUMN (header + chat-wrapper) */
+.chat-main-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
 }
 
 /* Header */
@@ -92,6 +167,27 @@ body {
     display: flex;
     flex: 1;
     overflow: hidden;
+}
+
+/* New chat button */
+.btn-new-chat {
+    background: none;
+    border: 1px solid #3b82f6;
+    color: #3b82f6;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.btn-new-chat:hover {
+    background: #3b82f6;
+    color: white;
 }
 
 /* Sidebar & Search */
