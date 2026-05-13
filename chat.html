@@ -1295,6 +1295,16 @@
             return `${days}d`;
         }
 
+        function formatTimeLeft(expiresAt) {
+            if (!expiresAt) return '';
+            const diff = expiresAt - Date.now();
+            if (diff <= 0) return 'Kedaluwarsa';
+            const hours = Math.floor(diff / 3600000);
+            const minutes = Math.floor((diff % 3600000) / 60000);
+            if (hours > 0) return `⏱ ${hours}j ${minutes}m lagi`;
+            return `⏱ ${minutes}m lagi`;
+        }
+
         // Open Note Edit Modal
         window.openNoteModal = function() {
             if (!currentUser) return;
@@ -1361,6 +1371,7 @@
 
             const videoId = extractYoutubeId(youtubeUrl);
 
+            const now = Date.now();
             const noteData = {
                 text: text,
                 youtubeUrl: youtubeUrl,
@@ -1368,7 +1379,8 @@
                 userId: currentUser.uid,
                 userName: currentUserName,
                 userPhoto: currentUserPhoto,
-                updatedAt: Date.now(),
+                updatedAt: now,
+                expiresAt: now + 24 * 60 * 60 * 1000, // 24 jam dari sekarang
                 likes: {},
                 replies: {}
             };
@@ -1429,9 +1441,21 @@
         function loadNotesPanel() {
             if (!currentUser) return;
 
-            // Load own note
+            // Load own note - cek expired
             get(ref(database, `notes/${currentUser.uid}`)).then(snap => {
-                renderMyNote(snap.exists() ? snap.val() : null);
+                if (snap.exists()) {
+                    const myNote = snap.val();
+                    if (myNote.expiresAt && Date.now() > myNote.expiresAt) {
+                        // Note sendiri sudah expired, hapus otomatis
+                        set(ref(database, `notes/${currentUser.uid}`), null)
+                            .then(() => renderMyNote(null))
+                            .catch(err => console.error('Error deleting expired note:', err));
+                    } else {
+                        renderMyNote(myNote);
+                    }
+                } else {
+                    renderMyNote(null);
+                }
             }).catch(err => console.error('Error loading my note:', err));
 
             // Listen to all notes
@@ -1455,11 +1479,18 @@
                     return;
                 }
 
+                const now = Date.now();
                 let count = 0;
                 snap.forEach(child => {
                     if (child.key === currentUser.uid) return;
                     const note = child.val();
                     if (!note || (!note.text && !note.youtubeId)) return;
+
+                    // Hapus otomatis note teman yang sudah expired (>24 jam)
+                    if (note.expiresAt && now > note.expiresAt) {
+                        set(ref(database, `notes/${child.key}`), null).catch(() => {});
+                        return; // Jangan tampilkan
+                    }
 
                     count++;
                     const likeCount = note.likes ? Object.keys(note.likes).length : 0;
@@ -1500,7 +1531,7 @@
                             </div>
                             <div class="friend-note-info">
                                 <div class="note-username">${escapeHtml(note.userName || 'User')}</div>
-                                <div class="note-sub">${formatTimeAgo(note.updatedAt)}</div>
+                                <div class="note-sub">${formatTimeAgo(note.updatedAt)} · <span class="note-expires">${formatTimeLeft(note.expiresAt)}</span></div>
                             </div>
                         </div>
                         ${note.text ? `<div class="note-text-bubble friend-bubble" onclick="openNoteViewer('${child.key}')">${escapeHtml(note.text)}</div>` : ''}
