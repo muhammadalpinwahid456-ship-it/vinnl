@@ -416,22 +416,15 @@ body {
     line-height: 1.4;
 }
 
-.message-media {
+/* Media Message */
+.media-message {
+    margin: 8px 0;
+}
+
+.media-message img,
+.media-message video {
+    display: block;
     border-radius: 8px;
-    transition: transform 0.2s ease;
-}
-
-.message-media:hover {
-    transform: scale(1.02);
-    cursor: pointer;
-}
-
-.image-message {
-    padding: 4px !important;
-}
-
-.video-message {
-    padding: 4px !important;
 }
 
 .message-time {
@@ -451,6 +444,7 @@ body {
     color: #8b949e;
 }
 
+/* Read Status Indicators */
 .message-status {
     display: inline-flex;
     align-items: center;
@@ -474,131 +468,59 @@ body {
     padding: 2rem;
 }
 
-/* ===== UPLOAD PROGRESS ===== */
-.upload-progress {
-    display: none;
-    flex-direction: column;
-    gap: 8px;
-    padding: 12px 16px;
-    background: #1f2937;
-    border-top: 1px solid #2d333b;
-}
-
-.progress-bar {
-    width: 100%;
-    height: 4px;
-    background: #374151;
-    border-radius: 2px;
-    overflow: hidden;
-}
-
-.progress-bar-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #3b82f6, #60a5fa);
-    width: 0%;
-    transition: width 0.3s ease;
-}
-
-.progress-text {
-    font-size: 0.8rem;
-    color: #9ca3af;
-}
-
-/* ===== MEDIA PREVIEW ===== */
-.media-preview {
-    display: none;
-    flex-direction: column;
-    gap: 8px;
-    padding: 12px 16px;
-    background: #1f2937;
-    border-top: 1px solid #2d333b;
-    align-items: flex-start;
-}
-
-.preview-item {
-    position: relative;
-    display: inline-block;
-}
-
-.btn-remove-media {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    background: rgba(239, 68, 68, 0.9);
-    border: none;
-    color: white;
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 1rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-}
-
-.btn-remove-media:hover {
-    background: #ef4444;
-    transform: scale(1.1);
-}
-
 /* Input Area */
 .input-area {
     background: linear-gradient(135deg, #1a1f3a 0%, #0f1527 100%);
     padding: 14px 16px;
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     gap: 12px;
     border-top: 1px solid #2d333b;
 }
 
-.input-wrapper {
-    flex: 1;
+.btn-attachment {
+    background: #2d333b;
+    border: 1px solid #3b82f6;
+    color: #3b82f6;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: all 0.2s ease;
     display: flex;
     align-items: center;
-    gap: 8px;
-    background: #0d1117;
-    border: 1px solid #2d333b;
-    border-radius: 8px;
-    padding: 4px;
-    transition: all 0.2s ease;
+    justify-content: center;
 }
 
-.input-wrapper:focus-within {
-    border-color: #3b82f6;
-    box-shadow: 0 0 8px rgba(59, 130, 246, 0.2);
-}
-
-.btn-attach {
-    background: none;
-    border: none;
-    color: #8b949e;
-    font-size: 1.3rem;
-    cursor: pointer;
-    padding: 6px 8px;
-    transition: color 0.2s ease;
-}
-
-.btn-attach:hover {
-    color: #3b82f6;
+.btn-attachment:hover {
+    background: #3b82f6;
+    color: white;
+    transform: scale(1.05);
 }
 
 .message-input {
-    background: transparent;
-    border: none;
+    background: #0d1117;
+    border: 1px solid #2d333b;
     color: #e0e6ed;
     flex: 1;
-    padding: 6px 8px;
+    padding: 10px 14px;
+    border-radius: 8px;
     font-size: 0.95rem;
     transition: all 0.2s ease;
     max-height: 100px;
     resize: none;
-    outline: none;
 }
 
 .message-input::placeholder {
     color: #6e7681;
+}
+
+.message-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    background: #0f1419;
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.2);
 }
 
 .btn-send {
@@ -623,36 +545,114 @@ body {
     transform: translateY(0);
 }
 
-.btn-send:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
+/* Media Preview */
+.media-preview {
+    background: #161b22;
+    border-top: 1px solid #2d333b;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: center;
+    position: relative;
 }
 
-/* ===== MEDIA VIEWER MODAL ===== */
-.media-viewer-modal {
+.media-preview-content {
+    position: relative;
+    max-width: 200px;
+}
+
+.media-preview-content img,
+.media-preview-content video {
+    max-width: 200px;
+    max-height: 200px;
+    border-radius: 8px;
+    object-fit: contain;
+}
+
+.btn-cancel-media {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-cancel-media:hover {
+    transform: scale(1.1);
+}
+
+/* Upload Progress */
+.upload-progress {
+    background: #161b22;
+    border-top: 1px solid #2d333b;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 6px;
+    background: #2d333b;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #3b82f6, #2563eb);
+    transition: width 0.3s;
+    width: 0%;
+}
+
+#progressText {
+    font-size: 0.8rem;
+    color: #8b949e;
+}
+
+/* Media Modal */
+.media-modal {
     display: none;
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.95);
+    background: rgba(0, 0, 0, 0.9);
     z-index: 3000;
     align-items: center;
     justify-content: center;
-    flex-direction: column;
-    gap: 20px;
 }
 
-.media-viewer-content {
+.media-modal-content {
     position: relative;
+    max-width: 90%;
+    max-height: 90%;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
+    justify-content: center;
 }
 
-.media-viewer-close {
+.media-modal-content img,
+.media-modal-content video {
+    max-width: 100%;
+    max-height: 80vh;
+    border-radius: 8px;
+    object-fit: contain;
+}
+
+.modal-close {
     position: absolute;
     top: 20px;
     right: 20px;
@@ -668,22 +668,29 @@ body {
     align-items: center;
     justify-content: center;
     transition: all 0.2s ease;
-    z-index: 10;
+    z-index: 3001;
 }
 
-.media-viewer-close:hover {
+.modal-close:hover {
     background: rgba(255, 255, 255, 0.3);
+}
+
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
 }
 
 .btn-download {
     background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
     color: white;
+    border: none;
     padding: 10px 24px;
     border-radius: 8px;
-    text-decoration: none;
+    cursor: pointer;
     font-weight: 600;
+    font-size: 0.95rem;
     transition: all 0.2s ease;
-    display: inline-block;
 }
 
 .btn-download:hover {
@@ -732,27 +739,6 @@ body {
         transform: scale(1) translateY(0);
         opacity: 1;
     }
-}
-
-.modal-close {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    background: none;
-    border: none;
-    color: #8b949e;
-    font-size: 1.5rem;
-    cursor: pointer;
-    transition: color 0.2s ease;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.modal-close:hover {
-    color: #e0e6ed;
 }
 
 .modal-content h2 {
@@ -916,6 +902,12 @@ body {
         font-size: 0.6rem;
         min-width: 16px;
     }
+
+    .media-preview-content img,
+    .media-preview-content video {
+        max-width: 150px;
+        max-height: 150px;
+    }
 }
 
 @media (max-width: 480px) {
@@ -952,7 +944,7 @@ body {
     }
 
     .message-input {
-        padding: 6px 8px;
+        padding: 8px 12px;
         font-size: 0.9rem;
     }
 
@@ -969,15 +961,14 @@ body {
         min-width: 14px;
     }
 
-    .media-viewer-modal {
-        padding: 20px;
+    .media-preview-content img,
+    .media-preview-content video {
+        max-width: 120px;
+        max-height: 120px;
     }
 
-    .media-viewer-close {
-        top: 10px;
-        right: 10px;
-        width: 40px;
-        height: 40px;
-        font-size: 1.5rem;
+    .media-modal-content img,
+    .media-modal-content video {
+        max-height: 60vh;
     }
 }
