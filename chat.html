@@ -63,24 +63,27 @@
 
                 <!-- NOTES PANEL -->
                 <div id="panelNotes" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
-                    <!-- My Note Card -->
-                    <div class="my-note-card">
-                        <div class="my-note-header">
-                            <img id="noteMyAvatar" src="https://via.placeholder.com/36" class="note-avatar">
-                            <div>
-                                <div class="note-username" id="noteMyName">Saya</div>
-                                <div class="note-sub">Catatan saya</div>
+                    <!-- Notes Scroll Row - Instagram style -->
+                    <div class="notes-scroll-wrapper">
+                        <div class="notes-scroll-row" id="notesScrollRow">
+                            <!-- My note bubble -->
+                            <div class="note-story-item" id="myNoteStoryItem" onclick="openNoteModal()">
+                                <div class="note-bubble" id="myNoteBubble">
+                                    <span class="note-bubble-empty">+ Catatan</span>
+                                </div>
+                                <div class="note-story-avatar-wrap">
+                                    <img id="noteMyAvatar" src="https://via.placeholder.com/52" class="note-story-avatar my-note-avatar">
+                                    <div class="note-add-btn">+</div>
+                                </div>
+                                <div class="note-story-name" id="noteMyName">Kamu</div>
                             </div>
-                            <button class="btn-edit-note" onclick="openNoteModal()" title="Edit catatan">✏️</button>
-                        </div>
-                        <div id="myNoteDisplay" class="my-note-display">
-                            <p class="note-empty-hint">Klik ✏️ untuk tambah catatan & lagu</p>
+                            <!-- Friends notes injected here by JS -->
                         </div>
                     </div>
 
-                    <div class="notes-divider">Catatan Teman</div>
+                    <div class="notes-divider">Semua Catatan</div>
 
-                    <!-- Friends Notes List -->
+                    <!-- Friends Notes List (card view below) -->
                     <div class="notes-friends-list" id="friendsNotesList">
                         <p class="notes-loading">Memuat catatan...</p>
                     </div>
@@ -195,8 +198,8 @@
     <div id="noteModal" class="modal" style="display:none;">
         <div class="modal-content note-modal-content">
             <button class="modal-close" onclick="closeNoteModal()">✕</button>
-            <h2>🎵 Catatan Musik Saya</h2>
-            <p class="note-modal-desc">Bagikan lagu favoritmu dan tulis catatan untuk hari ini</p>
+            <h2>🎵 Catatan Musik</h2>
+            <p class="note-modal-desc">Bagikan lagu & catatan harianmu</p>
 
             <div class="form-group">
                 <label>📝 Catatan (maks 60 karakter)</label>
@@ -205,18 +208,21 @@
             </div>
 
             <div class="form-group">
-                <label>🔗 Link YouTube</label>
+                <label>🎵 Link YouTube (hanya audio yang diputar)</label>
                 <input type="text" id="noteYoutubeInput" placeholder="https://www.youtube.com/watch?v=...">
             </div>
 
+            <!-- Hidden preview just for validation -->
             <div id="noteYoutubePreview" class="note-yt-preview" style="display:none;">
-                <iframe id="noteYoutubeIframe" width="100%" height="160" frameborder="0" allowfullscreen style="border-radius:8px;"></iframe>
-                <div id="noteYoutubeTitle" class="note-yt-title"></div>
+                <div class="note-yt-audio-preview">
+                    <div class="note-yt-music-icon">🎵</div>
+                    <div id="noteYoutubeTitle" class="note-yt-title">Lagu terdeteksi ✓</div>
+                </div>
             </div>
 
             <div class="note-modal-actions">
-                <button class="btn-preview-yt" onclick="previewYoutube()">👁️ Preview Lagu</button>
-                <button class="btn-save note-btn-save" onclick="saveMyNote()">💾 Simpan Catatan</button>
+                <button class="btn-preview-yt" onclick="previewYoutube()">🔍 Validasi Link</button>
+                <button class="btn-save note-btn-save" onclick="saveMyNote()">💾 Simpan</button>
             </div>
             <button class="btn-delete-note" onclick="deleteMyNote()">🗑️ Hapus Catatan</button>
         </div>
@@ -234,9 +240,23 @@
                 </div>
             </div>
             <div class="note-viewer-text" id="viewerText"></div>
-            <div id="viewerYtContainer" class="viewer-yt-container" style="display:none;">
-                <iframe id="viewerYtIframe" width="100%" height="200" frameborder="0" allowfullscreen style="border-radius:10px;"></iframe>
+
+            <!-- Audio Only Player (video hidden via CSS) -->
+            <div id="viewerYtContainer" class="viewer-audio-container" style="display:none;">
+                <div class="audio-player-ui">
+                    <div class="audio-music-icon" id="audioMusicIcon">🎵</div>
+                    <div class="audio-info">
+                        <div class="audio-label">Sedang diputar</div>
+                        <div class="audio-song-name" id="audioSongName">Memuat lagu...</div>
+                    </div>
+                    <button class="audio-play-btn" id="audioPlayBtn" onclick="toggleAudio()">▶</button>
+                </div>
+                <!-- Hidden iframe - audio only, no video shown -->
+                <div class="audio-iframe-hidden">
+                    <iframe id="viewerYtIframe" width="1" height="1" frameborder="0" allow="autoplay; encrypted-media" style="position:absolute;opacity:0;pointer-events:none;"></iframe>
+                </div>
             </div>
+
             <div class="note-viewer-actions">
                 <button class="btn-like-note" id="btnLikeNote" onclick="toggleLikeNote()">❤️ <span id="likeCount">0</span> Suka</button>
                 <button class="btn-reply-note" onclick="focusReply()">💬 Balas</button>
@@ -1426,8 +1446,8 @@
                 if (!urlOverride) alert('⚠️ Link YouTube tidak valid');
                 return;
             }
-            document.getElementById('noteYoutubeIframe').src = `https://www.youtube.com/embed/${videoId}?autoplay=0`;
             document.getElementById('noteYoutubePreview').style.display = 'block';
+            document.getElementById('noteYoutubeTitle').textContent = 'Link valid ✓ Video ID: ' + videoId;
         };
 
         window.saveMyNote = async function() {
@@ -1477,27 +1497,27 @@
         };
 
         function renderMyNote(data) {
-            const display = document.getElementById('myNoteDisplay');
             const avatar = document.getElementById('myAvatar');
             document.getElementById('noteMyAvatar').src = avatar.src;
-            document.getElementById('noteMyName').textContent = currentUserName;
+            document.getElementById('noteMyName').textContent = 'Kamu';
+
+            const bubble = document.getElementById('myNoteBubble');
+            const storyItem = document.getElementById('myNoteStoryItem');
 
             if (!data || (!data.text && !data.youtubeId)) {
-                display.innerHTML = '<p class="note-empty-hint">Klik ✏️ untuk tambah catatan & lagu</p>';
+                bubble.innerHTML = '<span class="note-bubble-empty">+ Catatan</span>';
+                storyItem.classList.remove('has-note');
                 return;
             }
 
-            let html = '';
-            if (data.text) {
-                html += `<div class="note-text-bubble">${escapeHtml(data.text)}</div>`;
-            }
+            storyItem.classList.add('has-note');
+            let bubbleContent = '';
             if (data.youtubeId) {
-                html += `<div class="note-yt-thumb">
-                    <img src="https://img.youtube.com/vi/${data.youtubeId}/mqdefault.jpg" style="width:100%;border-radius:8px;margin-top:6px;">
-                    <div class="note-yt-badge">▶ YouTube</div>
-                </div>`;
+                bubbleContent += `<span class="note-bubble-music">🎵 ${data.text || 'Lagu'}</span>`;
+            } else if (data.text) {
+                bubbleContent += `<span class="note-bubble-text">${escapeHtml(data.text)}</span>`;
             }
-            display.innerHTML = html;
+            bubble.innerHTML = bubbleContent;
         }
 
         function loadNotesPanel() {
@@ -1515,6 +1535,12 @@
                 const friendsList = document.getElementById('friendsNotesList');
                 friendsList.innerHTML = '';
 
+                // Clear friend story items from scroll row (keep only first child = my note)
+                const scrollRow = document.getElementById('notesScrollRow');
+                const myItem = document.getElementById('myNoteStoryItem');
+                scrollRow.innerHTML = '';
+                scrollRow.appendChild(myItem);
+
                 if (!snap.exists()) {
                     friendsList.innerHTML = '<p class="notes-loading">Belum ada catatan teman</p>';
                     return;
@@ -1522,7 +1548,7 @@
 
                 let count = 0;
                 snap.forEach(child => {
-                    if (child.key === currentUser.uid) return; // skip own
+                    if (child.key === currentUser.uid) return;
                     const note = child.val();
                     if (!note || (!note.text && !note.youtubeId)) return;
 
@@ -1530,22 +1556,46 @@
                     const likeCount = note.likes ? Object.keys(note.likes).length : 0;
                     const replyCount = note.replies ? Object.keys(note.replies).length : 0;
                     const liked = note.likes && note.likes[currentUser.uid];
+                    const hasMusic = !!note.youtubeId;
 
+                    // Story bubble item in scroll row
+                    const storyItem = document.createElement('div');
+                    storyItem.className = 'note-story-item has-note';
+                    storyItem.setAttribute('data-user-id', child.key);
+                    storyItem.onclick = () => openNoteViewer(child.key);
+
+                    const bubbleText = hasMusic
+                        ? `<span class="note-bubble-music">🎵 ${escapeHtml(note.text || 'Lagu')}</span>`
+                        : `<span class="note-bubble-text">${escapeHtml(note.text || '')}</span>`;
+
+                    storyItem.innerHTML = `
+                        <div class="note-bubble friend-note-bubble">${bubbleText}</div>
+                        <div class="note-story-avatar-wrap">
+                            <img src="${note.userPhoto || 'https://via.placeholder.com/52'}" class="note-story-avatar">
+                        </div>
+                        <div class="note-story-name">${escapeHtml((note.userName || 'User').split(' ')[0])}</div>
+                    `;
+                    scrollRow.appendChild(storyItem);
+
+                    // Card in list below
                     const card = document.createElement('div');
                     card.className = 'friend-note-card';
                     card.setAttribute('data-user-id', child.key);
                     card.innerHTML = `
                         <div class="friend-note-top" onclick="openNoteViewer('${child.key}')">
-                            <img src="${note.userPhoto || 'https://via.placeholder.com/36'}" class="note-avatar">
+                            <div class="friend-note-avatar-wrap">
+                                <img src="${note.userPhoto || 'https://via.placeholder.com/40'}" class="note-avatar">
+                                ${hasMusic ? '<div class="note-music-ring"></div>' : ''}
+                            </div>
                             <div class="friend-note-info">
                                 <div class="note-username">${escapeHtml(note.userName || 'User')}</div>
                                 <div class="note-sub">${formatTimeAgo(note.updatedAt)}</div>
                             </div>
                         </div>
                         ${note.text ? `<div class="note-text-bubble friend-bubble" onclick="openNoteViewer('${child.key}')">${escapeHtml(note.text)}</div>` : ''}
-                        ${note.youtubeId ? `<div class="note-yt-thumb" onclick="openNoteViewer('${child.key}')">
-                            <img src="https://img.youtube.com/vi/${note.youtubeId}/mqdefault.jpg" style="width:100%;border-radius:8px;margin-top:6px;">
-                            <div class="note-yt-badge">▶ YouTube</div>
+                        ${hasMusic ? `<div class="note-audio-pill" onclick="openNoteViewer('${child.key}')">
+                            <span class="note-audio-bars"><span></span><span></span><span></span></span>
+                            <span>Putar lagu</span>
                         </div>` : ''}
                         <div class="friend-note-actions">
                             <button class="note-action-btn ${liked ? 'liked' : ''}" onclick="quickLikeNote('${child.key}', event)">
@@ -1577,9 +1627,11 @@
             }
         };
 
-        // Open Note Viewer
+        let audioPlaying = false;
+
         window.openNoteViewer = function(userId) {
             viewingNoteUserId = userId;
+            audioPlaying = false;
             get(ref(database, `notes/${userId}`)).then(snap => {
                 if (!snap.exists()) return;
                 const note = snap.val();
@@ -1591,7 +1643,11 @@
 
                 const ytContainer = document.getElementById('viewerYtContainer');
                 if (note.youtubeId) {
-                    document.getElementById('viewerYtIframe').src = `https://www.youtube.com/embed/${note.youtubeId}?autoplay=0`;
+                    // Load iframe with autoplay=0 initially — audio only (video hidden)
+                    document.getElementById('viewerYtIframe').src = `https://www.youtube.com/embed/${note.youtubeId}?autoplay=0&controls=0&enablejsapi=1`;
+                    document.getElementById('audioSongName').textContent = note.text || 'Lagu dari ' + (note.userName || 'teman');
+                    document.getElementById('audioPlayBtn').textContent = '▶';
+                    document.getElementById('audioMusicIcon').classList.remove('playing');
                     ytContainer.style.display = 'block';
                 } else {
                     ytContainer.style.display = 'none';
@@ -1606,11 +1662,36 @@
                 document.getElementById('btnLikeNote').className = `btn-like-note${liked ? ' liked' : ''}`;
                 document.getElementById('btnLikeNote').innerHTML = `${liked ? '❤️' : '🤍'} <span id="likeCount">${likeCount}</span> Suka`;
 
-                // Replies
                 renderReplies(note.replies || {});
-
                 document.getElementById('noteViewerModal').style.display = 'flex';
             });
+        };
+
+        window.toggleAudio = function() {
+            const iframe = document.getElementById('viewerYtIframe');
+            const btn = document.getElementById('audioPlayBtn');
+            const icon = document.getElementById('audioMusicIcon');
+
+            if (!audioPlaying) {
+                // Reload iframe with autoplay=1
+                const currentSrc = iframe.src;
+                const videoId = currentSrc.match(/embed\/([a-zA-Z0-9_-]{11})/);
+                if (videoId) {
+                    iframe.src = `https://www.youtube.com/embed/${videoId[1]}?autoplay=1&controls=0&enablejsapi=1`;
+                }
+                btn.textContent = '⏸';
+                icon.classList.add('playing');
+                audioPlaying = true;
+            } else {
+                const currentSrc = iframe.src;
+                const videoId = currentSrc.match(/embed\/([a-zA-Z0-9_-]{11})/);
+                if (videoId) {
+                    iframe.src = `https://www.youtube.com/embed/${videoId[1]}?autoplay=0&controls=0&enablejsapi=1`;
+                }
+                btn.textContent = '▶';
+                icon.classList.remove('playing');
+                audioPlaying = false;
+            }
         };
 
         function renderReplies(replies) {
@@ -1636,6 +1717,7 @@
             document.getElementById('noteViewerModal').style.display = 'none';
             document.getElementById('viewerYtIframe').src = '';
             viewingNoteUserId = null;
+            audioPlaying = false;
         };
 
         window.toggleLikeNote = async function() {

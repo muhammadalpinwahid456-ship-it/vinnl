@@ -1040,6 +1040,7 @@ body {
     }
 }
 
+
 /* ===== NOTES FEATURE STYLES ===== */
 
 /* Sidebar Tabs */
@@ -1054,10 +1055,10 @@ body {
     background: transparent;
     color: #8b949e;
     border: 1px solid #2d333b;
-    padding: 6px 10px;
+    padding: 6px 8px;
     border-radius: 8px;
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     font-weight: 600;
     transition: all 0.2s ease;
     white-space: nowrap;
@@ -1074,132 +1075,167 @@ body {
     color: #e0e6ed;
 }
 
-/* Notes Panel */
-#panelNotes {
-    overflow-y: auto;
-    flex: 1;
+/* ===== NOTES SCROLL ROW (Instagram style) ===== */
+.notes-scroll-wrapper {
+    padding: 14px 12px 8px;
+    border-bottom: 1px solid #2d333b;
+    background: #0d1117;
 }
 
-/* My Note Card */
-.my-note-card {
-    background: linear-gradient(135deg, #1a1f3a 0%, #0f1527 100%);
-    border: 1px solid #2d333b;
-    border-radius: 10px;
-    margin: 12px;
-    padding: 14px;
-}
-
-.my-note-header {
+.notes-scroll-row {
     display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+}
+
+.notes-scroll-row::-webkit-scrollbar {
+    display: none;
+}
+
+/* Individual note story item */
+.note-story-item {
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 10px;
-}
-
-.note-avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 2px solid #3b82f6;
-    flex-shrink: 0;
-}
-
-.note-username {
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: #e0e6ed;
-}
-
-.note-sub {
-    font-size: 0.75rem;
-    color: #8b949e;
-}
-
-.btn-edit-note {
-    margin-left: auto;
-    background: none;
-    border: 1px solid #2d333b;
-    color: #8b949e;
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
+    gap: 5px;
     cursor: pointer;
-    font-size: 0.9rem;
-    transition: all 0.2s ease;
+    flex-shrink: 0;
+    min-width: 64px;
+    max-width: 64px;
+    position: relative;
+}
+
+/* Speech bubble above avatar */
+.note-bubble {
+    background: #1e2433;
+    border: 1.5px solid #2d333b;
+    border-radius: 12px 12px 12px 4px;
+    padding: 6px 9px;
+    font-size: 0.72rem;
+    color: #c9d1d9;
+    line-height: 1.3;
+    text-align: center;
+    min-height: 32px;
+    max-width: 90px;
     display: flex;
     align-items: center;
     justify-content: center;
-}
-
-.btn-edit-note:hover {
-    background: #2d333b;
-    color: #e0e6ed;
-    transform: scale(1.1);
-}
-
-.my-note-display {
-    min-height: 36px;
-}
-
-.note-empty-hint {
-    color: #6e7681;
-    font-size: 0.8rem;
-    font-style: italic;
-}
-
-.note-text-bubble {
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-    color: white;
-    padding: 8px 12px;
-    border-radius: 16px 16px 16px 4px;
-    font-size: 0.85rem;
-    font-weight: 500;
-    display: inline-block;
-    max-width: 100%;
-    word-wrap: break-word;
-    margin-bottom: 6px;
-}
-
-.note-yt-thumb {
+    word-break: break-word;
     position: relative;
-    cursor: pointer;
-    border-radius: 8px;
-    overflow: hidden;
-    margin-top: 6px;
+    transition: border-color 0.2s;
 }
 
-.note-yt-thumb img {
-    display: block;
-    transition: opacity 0.2s;
+.note-story-item.has-note .note-bubble {
+    border-color: #3b82f6;
+    background: linear-gradient(135deg, #1e2d4a 0%, #1a1f3a 100%);
 }
 
-.note-yt-thumb:hover img {
-    opacity: 0.85;
+.note-story-item:hover .note-bubble {
+    border-color: #60a5fa;
 }
 
-.note-yt-badge {
+/* Tiny tail on bubble */
+.note-bubble::after {
+    content: '';
     position: absolute;
-    bottom: 6px;
-    left: 6px;
-    background: rgba(0,0,0,0.75);
-    color: #fff;
+    bottom: -7px;
+    left: 12px;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 7px solid #2d333b;
+}
+
+.note-story-item.has-note .note-bubble::after {
+    border-top-color: #3b82f6;
+}
+
+.note-bubble-empty {
+    color: #6e7681;
     font-size: 0.7rem;
-    padding: 2px 7px;
-    border-radius: 10px;
-    font-weight: 600;
+}
+
+.note-bubble-text {
+    color: #e0e6ed;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.note-bubble-music {
+    color: #60a5fa;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Avatar ring */
+.note-story-avatar-wrap {
+    position: relative;
+    width: 52px;
+    height: 52px;
+    margin-top: 2px;
+}
+
+.note-story-avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #2d333b;
+    transition: border-color 0.2s;
+}
+
+.note-story-item.has-note .note-story-avatar {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px #0d1117, 0 0 0 4px #3b82f6;
+}
+
+.note-story-item:hover .note-story-avatar {
+    border-color: #60a5fa;
+}
+
+/* + add button on my avatar */
+.note-add-btn {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 18px;
+    height: 18px;
+    background: #3b82f6;
+    color: white;
+    border-radius: 50%;
+    font-size: 0.75rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #0d1117;
+}
+
+.note-story-name {
+    font-size: 0.7rem;
+    color: #8b949e;
+    text-align: center;
+    max-width: 60px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Divider */
 .notes-divider {
-    text-align: center;
+    text-align: left;
     color: #6e7681;
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     font-weight: 600;
     letter-spacing: 0.5px;
-    padding: 8px 12px;
-    border-top: 1px solid #2d333b;
-    margin-top: 4px;
+    padding: 10px 14px 6px;
 }
 
 /* Friends Notes Loading */
@@ -1210,18 +1246,23 @@ body {
     padding: 24px 12px;
 }
 
+/* Friends Notes List */
+.notes-friends-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0 8px;
+}
+
 /* Friend Note Card */
 .friend-note-card {
-    background: #161b22;
-    border: 1px solid #2d333b;
-    border-radius: 10px;
-    margin: 8px 12px;
-    padding: 12px;
-    transition: border-color 0.2s ease;
+    padding: 12px 14px;
+    border-bottom: 1px solid #1a1f2e;
+    transition: background 0.15s ease;
+    cursor: default;
 }
 
 .friend-note-card:hover {
-    border-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.04);
 }
 
 .friend-note-top {
@@ -1232,20 +1273,117 @@ body {
     margin-bottom: 8px;
 }
 
+.friend-note-avatar-wrap {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+}
+
+.note-music-ring {
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 2px solid #3b82f6;
+    animation: musicRing 2s linear infinite;
+}
+
+@keyframes musicRing {
+    0% { border-color: #3b82f6; box-shadow: 0 0 4px rgba(59,130,246,0.4); }
+    50% { border-color: #8b5cf6; box-shadow: 0 0 8px rgba(139,92,246,0.4); }
+    100% { border-color: #3b82f6; box-shadow: 0 0 4px rgba(59,130,246,0.4); }
+}
+
+.note-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #2d333b;
+    display: block;
+}
+
 .friend-note-info {
     flex: 1;
 }
 
-.friend-bubble {
-    background: linear-gradient(135deg, #1e3a5f 0%, #162b45 100%);
-    border-radius: 4px 16px 16px 16px;
+.note-username {
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: #e0e6ed;
+}
+
+.note-sub {
+    font-size: 0.75rem;
+    color: #8b949e;
+}
+
+.note-text-bubble {
+    background: #1e2433;
+    border: 1px solid #2d333b;
+    color: #e0e6ed;
+    padding: 7px 11px;
+    border-radius: 4px 14px 14px 14px;
+    font-size: 0.83rem;
+    display: inline-block;
+    max-width: 100%;
+    word-wrap: break-word;
+    margin-bottom: 7px;
     cursor: pointer;
+}
+
+.friend-bubble {
+    border-color: #1e3a5f;
+    background: linear-gradient(135deg, #1a2a40 0%, #151c2e 100%);
+}
+
+/* Audio pill */
+.note-audio-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: linear-gradient(135deg, #1e3a5f 0%, #1a1f3a 100%);
+    border: 1px solid #3b82f6;
+    color: #60a5fa;
+    padding: 5px 11px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 8px;
+    transition: all 0.2s;
+}
+
+.note-audio-pill:hover {
+    background: rgba(59, 130, 246, 0.2);
+}
+
+.note-audio-bars {
+    display: flex;
+    gap: 2px;
+    align-items: flex-end;
+    height: 14px;
+}
+
+.note-audio-bars span {
+    width: 3px;
+    background: #3b82f6;
+    border-radius: 2px;
+    animation: audioBars 0.8s ease infinite alternate;
+}
+
+.note-audio-bars span:nth-child(2) { animation-delay: 0.2s; }
+.note-audio-bars span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes audioBars {
+    from { height: 4px; }
+    to { height: 12px; }
 }
 
 .friend-note-actions {
     display: flex;
     gap: 8px;
-    margin-top: 10px;
+    margin-top: 8px;
 }
 
 .note-action-btn {
@@ -1255,7 +1393,7 @@ body {
     padding: 4px 10px;
     border-radius: 12px;
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     transition: all 0.2s ease;
 }
 
@@ -1267,29 +1405,37 @@ body {
 
 /* Note Edit Modal */
 .note-modal-content {
-    max-width: 480px !important;
+    max-width: 440px !important;
 }
 
 .note-modal-desc {
     color: #8b949e;
-    font-size: 0.85rem;
-    margin-bottom: 20px;
+    font-size: 0.83rem;
+    margin-bottom: 18px;
 }
 
 .note-yt-preview {
-    margin: 12px 0;
-    border: 1px solid #2d333b;
+    margin: 10px 0;
+    background: linear-gradient(135deg, #1e2d4a 0%, #1a1f3a 100%);
+    border: 1px solid #3b82f6;
     border-radius: 10px;
-    overflow: hidden;
-    padding: 8px;
-    background: #0d1117;
+    padding: 14px;
+}
+
+.note-yt-audio-preview {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.note-yt-music-icon {
+    font-size: 1.6rem;
 }
 
 .note-yt-title {
-    color: #8b949e;
-    font-size: 0.8rem;
-    margin-top: 6px;
-    text-align: center;
+    color: #60a5fa;
+    font-size: 0.83rem;
+    font-weight: 600;
 }
 
 .note-modal-actions {
@@ -1307,7 +1453,7 @@ body {
     border-radius: 8px;
     cursor: pointer;
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
     transition: all 0.2s ease;
 }
 
@@ -1327,7 +1473,7 @@ body {
     padding: 8px;
     border-radius: 8px;
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: 0.83rem;
     font-weight: 600;
     transition: all 0.2s ease;
     margin-top: 4px;
@@ -1339,14 +1485,14 @@ body {
 
 /* Note Viewer Modal */
 .note-viewer-content {
-    max-width: 500px !important;
+    max-width: 460px !important;
 }
 
 .note-viewer-header {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-bottom: 16px;
+    margin-bottom: 14px;
 }
 
 .note-viewer-avatar {
@@ -1364,26 +1510,99 @@ body {
 }
 
 .note-viewer-time {
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     color: #8b949e;
 }
 
 .note-viewer-text {
-    background: linear-gradient(135deg, #1e3a5f 0%, #162b45 100%);
+    background: linear-gradient(135deg, #1e2d4a 0%, #162136 100%);
     border-left: 3px solid #3b82f6;
-    padding: 12px 16px;
+    padding: 11px 14px;
     border-radius: 0 10px 10px 0;
-    font-size: 1rem;
+    font-size: 0.95rem;
     color: #e0e6ed;
     margin-bottom: 14px;
-    min-height: 20px;
+    min-height: 18px;
     word-wrap: break-word;
 }
 
-.viewer-yt-container {
+/* Audio Only Player */
+.viewer-audio-container {
+    background: linear-gradient(135deg, #1a2a40 0%, #111827 100%);
+    border: 1px solid #2d4a6b;
+    border-radius: 12px;
+    padding: 14px;
     margin-bottom: 14px;
-    border-radius: 10px;
+}
+
+.audio-player-ui {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.audio-music-icon {
+    font-size: 1.8rem;
+    transition: transform 0.3s;
+}
+
+.audio-music-icon.playing {
+    animation: spinMusic 3s linear infinite;
+}
+
+@keyframes spinMusic {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.audio-info {
+    flex: 1;
+}
+
+.audio-label {
+    font-size: 0.7rem;
+    color: #8b949e;
+    margin-bottom: 2px;
+}
+
+.audio-song-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #60a5fa;
     overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 200px;
+}
+
+.audio-play-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.audio-play-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+.audio-iframe-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
 }
 
 .note-viewer-actions {
@@ -1394,11 +1613,11 @@ body {
 
 .btn-like-note, .btn-reply-note {
     flex: 1;
-    padding: 10px;
+    padding: 9px;
     border-radius: 8px;
     cursor: pointer;
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
     border: 1px solid #2d333b;
     background: #161b22;
     color: #8b949e;
@@ -1419,16 +1638,16 @@ body {
 
 /* Note Replies */
 .note-replies {
-    max-height: 200px;
+    max-height: 190px;
     overflow-y: auto;
     margin-bottom: 12px;
 }
 
 .note-reply-item {
     display: flex;
-    gap: 10px;
-    padding: 8px 0;
-    border-bottom: 1px solid #2d333b;
+    gap: 9px;
+    padding: 7px 0;
+    border-bottom: 1px solid #1a1f2e;
 }
 
 .reply-avatar {
@@ -1448,21 +1667,20 @@ body {
 
 .reply-name {
     font-weight: 600;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     color: #3b82f6;
 }
 
 .reply-text {
-    font-size: 0.85rem;
+    font-size: 0.83rem;
     color: #e0e6ed;
 }
 
 .reply-time {
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     color: #6e7681;
 }
 
-/* Note Reply Input */
 .note-reply-input {
     display: flex;
     gap: 8px;
@@ -1473,34 +1691,33 @@ body {
     background: #0d1117;
     border: 1px solid #2d333b;
     color: #e0e6ed;
-    padding: 10px 12px;
+    padding: 9px 12px;
     border-radius: 8px;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
     transition: border-color 0.2s ease;
 }
 
-.note-reply-input input::placeholder {
-    color: #6e7681;
-}
-
-.note-reply-input input:focus {
-    outline: none;
-    border-color: #3b82f6;
-}
+.note-reply-input input::placeholder { color: #6e7681; }
+.note-reply-input input:focus { outline: none; border-color: #3b82f6; }
 
 .note-reply-input button {
     background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
     color: white;
     border: none;
-    padding: 10px 16px;
+    padding: 9px 14px;
     border-radius: 8px;
     cursor: pointer;
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: 0.83rem;
     transition: all 0.2s ease;
 }
 
 .note-reply-input button:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+/* Friend note bubble in scroll row */
+.friend-note-bubble {
+    border-radius: 12px 12px 4px 12px !important;
 }
