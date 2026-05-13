@@ -133,7 +133,7 @@
     <!-- MESSAGE OPTIONS MENU -->
     <div id="messageMenu" class="message-menu" style="display: none;">
         <button class="menu-item" onclick="deleteMessageForMe()">🗑️ Hapus untuk saya</button>
-        <button class="menu-item delete-for-all" onclick="deleteMessageForEveryone()">🗑️ Hapus untuk semua orang</button>
+        <button class="menu-item delete-for-all" onclick="unsendMessage()">↩️ Batalkan pengiriman</button>
     </div>
 
     <!-- MODAL NEW CHAT -->
@@ -232,26 +232,48 @@
             event.preventDefault();
             event.stopPropagation();
 
-            const message = event.currentTarget;
-            const messageData = message.dataset;
+            const bubble = event.currentTarget;
 
             selectedMessageId = messageKey;
-            selectedMessageElement = message;
+            selectedMessageElement = bubble;
 
             const menu = document.getElementById('messageMenu');
             menu.style.display = 'flex';
             menu.style.position = 'fixed';
-            menu.style.left = event.clientX + 'px';
-            menu.style.top = event.clientY + 'px';
 
-            // Hide delete for all button jika bukan message pemilik
+            const x = event.clientX || (event.touches && event.touches[0] ? event.touches[0].clientX : 0);
+            const y = event.clientY || (event.touches && event.touches[0] ? event.touches[0].clientY : 0);
+            menu.style.left = Math.min(x, window.innerWidth - 200) + 'px';
+            menu.style.top = Math.min(y, window.innerHeight - 100) + 'px';
+
             const deleteForAllBtn = menu.querySelector('.delete-for-all');
-            if (messageData.senderId === currentUser.uid) {
+            const isSender = bubble.dataset.senderId === currentUser.uid;
+            const isAlreadyUnsent = bubble.dataset.isUnsent === 'true';
+
+            if (isSender && !isAlreadyUnsent) {
                 deleteForAllBtn.style.display = 'flex';
             } else {
                 deleteForAllBtn.style.display = 'none';
             }
         };
+
+        // Long-press support untuk mobile
+        let longPressTimer = null;
+        document.addEventListener('touchstart', function(e) {
+            const bubble = e.target.closest('.message-bubble[data-message-key]');
+            if (!bubble) return;
+            longPressTimer = setTimeout(() => {
+                const messageKey = bubble.getAttribute('data-message-key');
+                showMessageMenu(e, messageKey);
+            }, 500);
+        }, { passive: true });
+
+        document.addEventListener('touchend', function() {
+            if (longPressTimer) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+            }
+        });
 
         window.deleteMessageForMe = function() {
             if (!selectedMessageId || !selectedUserId) {
@@ -284,13 +306,15 @@
             });
         };
 
-        window.deleteMessageForEveryone = function() {
+        // Batalkan pengiriman - Instagram style: penerima tidak melihat pesan sama sekali
+        window.unsendMessage = function() {
             if (!selectedMessageId || !selectedUserId) {
                 alert('❌ Error: Pesan tidak ditemukan');
                 return;
             }
 
-            if (!confirm('Hapus pesan untuk semua orang? Tindakan ini tidak dapat dibatalkan.')) {
+            if (!confirm('Batalkan pengiriman pesan ini? Penerima tidak akan dapat melihat pesan ini.')) {
+                closeMessageMenu();
                 return;
             }
 
@@ -301,30 +325,34 @@
                 if (snapshot.exists()) {
                     const msg = snapshot.val();
                     if (msg.senderId !== currentUser.uid) {
-                        alert('❌ Anda hanya dapat menghapus pesan milik anda sendiri untuk semua orang');
+                        alert('❌ Anda hanya dapat membatalkan pesan milik anda sendiri');
+                        closeMessageMenu();
                         return;
                     }
 
+                    // isUnsent: penerima tidak melihat sama sekali, pengirim melihat label "Pesan dibatalkan"
                     update(messageRef, {
-                        isDeleted: true,
+                        isUnsent: true,
                         text: '',
                         mediaUrl: null,
                         mediaType: null
                     })
                         .then(() => {
-                            console.log('✅ Pesan dihapus untuk semua orang');
+                            console.log('✅ Pengiriman pesan dibatalkan');
                             closeMessageMenu();
-                            loadMessages();
                         })
                         .catch(err => {
                             alert('❌ Error: ' + err.message);
-                            console.error('Delete error:', err);
+                            console.error('Unsend error:', err);
                         });
                 }
             }).catch(err => {
-                alert('❌ Error loading message: ' + err.message);
+                alert('❌ Error: ' + err.message);
             });
         };
+
+        // Tetap pertahankan deleteMessageForEveryone sebagai alias (kompatibilitas)
+        window.deleteMessageForEveryone = window.unsendMessage;
 
         function closeMessageMenu() {
             document.getElementById('messageMenu').style.display = 'none';
@@ -602,7 +630,7 @@
                 if (snapshot.exists()) {
                     snapshot.forEach((child) => {
                         const msg = child.val();
-                        if (msg.senderId !== currentUser.uid && !msg.isRead && !msg.isDeleted) {
+                        if (msg.senderId !== currentUser.uid && !msg.isRead && !msg.isDeleted && !msg.isUnsent) {
                             unreadCount++;
                         }
                     });
@@ -714,6 +742,11 @@
                             return;
                         }
 
+                        // isUnsent: penerima tidak melihat sama sekali
+                        if (msg.isUnsent && msg.senderId !== currentUser.uid) {
+                            return;
+                        }
+
                         const messageElement = document.createElement('div');
                         messageElement.className = `message ${msg.senderId === currentUser.uid ? 'sent' : 'received'}`;
                         messageElement.setAttribute('data-message-id', msg.key);
@@ -726,6 +759,9 @@
                         if (msg.isDeleted) {
                             // Deleted message indicator
                             contentHtml = '<p style="font-style: italic; color: #999;">🗑️ Pesan telah dihapus</p>';
+                        } else if (msg.isUnsent) {
+                            // Unsent indicator — hanya terlihat oleh pengirim
+                            contentHtml = '<p style="font-style: italic; color: #aaa; font-size: 0.88rem;">↩️ Kamu membatalkan pengiriman pesan ini</p>';
                         } else if (msg.mediaUrl && msg.mediaType) {
                             // Media message
                             if (msg.mediaType === 'image') {
@@ -755,7 +791,11 @@
                         }
                         
                         messageElement.innerHTML = `
-                            <div class="message-bubble" oncontextmenu="showMessageMenu(event, '${msg.key}')">
+                            <div class="message-bubble" 
+                                data-message-key="${msg.key}"
+                                data-sender-id="${msg.senderId}"
+                                data-is-unsent="${msg.isUnsent ? 'true' : 'false'}"
+                                oncontextmenu="showMessageMenu(event, '${msg.key}')">
                                 ${contentHtml}
                                 <span class="message-time">
                                     ${timeStr}
