@@ -130,6 +130,12 @@
         </div>
     </div>
 
+    <!-- MESSAGE OPTIONS MENU -->
+    <div id="messageMenu" class="message-menu" style="display: none;">
+        <button class="menu-item" onclick="deleteMessageForMe()">🗑️ Hapus untuk saya</button>
+        <button class="menu-item delete-for-all" onclick="deleteMessageForEveryone()">🗑️ Hapus untuk semua orang</button>
+    </div>
+
     <!-- MODAL NEW CHAT -->
     <div id="newChatModal" class="modal" style="display: none;">
         <div class="modal-content">
@@ -166,7 +172,8 @@
             push,
             get,
             set,
-            update
+            update,
+            remove
         } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         const firebaseConfig = {
@@ -194,12 +201,12 @@
         let selectedMediaFile = null;
         let currentMediaUrl = null;
         let currentMediaType = null;
+        let selectedMessageId = null;
+        let selectedMessageElement = null;
 
-        // ===== CLOUDINARY CONFIG (DIPERBAIKI) =====
+        // ===== CLOUDINARY CONFIG =====
         const CLOUDINARY_CLOUD_NAME = "djc9oemca";
-        // ⚠️ PENTING: Gunakan "unsigned" upload preset (tanpa authentikasi server-side)
-        // Buat di Cloudinary Dashboard: Settings → Upload → Add upload preset → Unsigned
-        const CLOUDINARY_UPLOAD_PRESET = "chat_unsigned"; // GANTI SESUAI UPLOAD PRESET ANDA
+        const CLOUDINARY_UPLOAD_PRESET = "chat_unsigned";
 
         // ===== HELPER FUNCTIONS =====
         function generateChatId(userId1, userId2) {
@@ -219,6 +226,115 @@
             div.textContent = text;
             return div.innerHTML;
         }
+
+        // ===== DELETE MESSAGE CONTEXT MENU =====
+        window.showMessageMenu = function(event, messageKey) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const message = event.currentTarget;
+            const messageData = message.dataset;
+
+            selectedMessageId = messageKey;
+            selectedMessageElement = message;
+
+            const menu = document.getElementById('messageMenu');
+            menu.style.display = 'flex';
+            menu.style.position = 'fixed';
+            menu.style.left = event.clientX + 'px';
+            menu.style.top = event.clientY + 'px';
+
+            // Hide delete for all button jika bukan message pemilik
+            const deleteForAllBtn = menu.querySelector('.delete-for-all');
+            if (messageData.senderId === currentUser.uid) {
+                deleteForAllBtn.style.display = 'flex';
+            } else {
+                deleteForAllBtn.style.display = 'none';
+            }
+        };
+
+        window.deleteMessageForMe = function() {
+            if (!selectedMessageId || !selectedUserId) {
+                alert('❌ Error: Pesan tidak ditemukan');
+                return;
+            }
+
+            const chatId = generateChatId(currentUser.uid, selectedUserId);
+            const messageRef = ref(database, `chats/${chatId}/messages/${selectedMessageId}`);
+
+            get(messageRef).then((snapshot) => {
+                if (snapshot.exists()) {
+                    const msg = snapshot.val();
+                    const deletedFor = msg.deletedFor || {};
+                    deletedFor[currentUser.uid] = true;
+
+                    update(messageRef, { deletedFor: deletedFor })
+                        .then(() => {
+                            console.log('✅ Pesan dihapus untuk anda');
+                            closeMessageMenu();
+                            loadMessages();
+                        })
+                        .catch(err => {
+                            alert('❌ Error: ' + err.message);
+                            console.error('Delete error:', err);
+                        });
+                }
+            }).catch(err => {
+                alert('❌ Error loading message: ' + err.message);
+            });
+        };
+
+        window.deleteMessageForEveryone = function() {
+            if (!selectedMessageId || !selectedUserId) {
+                alert('❌ Error: Pesan tidak ditemukan');
+                return;
+            }
+
+            if (!confirm('Hapus pesan untuk semua orang? Tindakan ini tidak dapat dibatalkan.')) {
+                return;
+            }
+
+            const chatId = generateChatId(currentUser.uid, selectedUserId);
+            const messageRef = ref(database, `chats/${chatId}/messages/${selectedMessageId}`);
+
+            get(messageRef).then((snapshot) => {
+                if (snapshot.exists()) {
+                    const msg = snapshot.val();
+                    if (msg.senderId !== currentUser.uid) {
+                        alert('❌ Anda hanya dapat menghapus pesan milik anda sendiri untuk semua orang');
+                        return;
+                    }
+
+                    update(messageRef, {
+                        isDeleted: true,
+                        text: '',
+                        mediaUrl: null,
+                        mediaType: null
+                    })
+                        .then(() => {
+                            console.log('✅ Pesan dihapus untuk semua orang');
+                            closeMessageMenu();
+                            loadMessages();
+                        })
+                        .catch(err => {
+                            alert('❌ Error: ' + err.message);
+                            console.error('Delete error:', err);
+                        });
+                }
+            }).catch(err => {
+                alert('❌ Error loading message: ' + err.message);
+            });
+        };
+
+        function closeMessageMenu() {
+            document.getElementById('messageMenu').style.display = 'none';
+            selectedMessageId = null;
+            selectedMessageElement = null;
+        }
+
+        document.addEventListener('click', () => {
+            closeMessageMenu();
+        });
 
         // ===== UPDATE UNREAD COUNT =====
         function updateUnreadCount(userId, count) {
@@ -350,12 +466,13 @@
             document.getElementById('mediaInput').value = '';
         };
 
-        // ===== UPLOAD TO CLOUDINARY (DIPERBAIKI) =====
+        // ===== UPLOAD TO CLOUDINARY =====
         async function uploadToCloudinary(file) {
             return new Promise((resolve, reject) => {
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+                formData.append('cloud_name', CLOUDINARY_CLOUD_NAME);
 
                 const xhr = new XMLHttpRequest();
 
@@ -369,40 +486,26 @@
 
                 xhr.addEventListener('load', () => {
                     if (xhr.status === 200) {
-                        try {
-                            const response = JSON.parse(xhr.responseText);
-                            resolve({
-                                url: response.secure_url,
-                                publicId: response.public_id,
-                                type: file.type.startsWith('video/') ? 'video' : 'image'
-                            });
-                            console.log('✅ Upload ke Cloudinary berhasil');
-                        } catch (e) {
-                            reject(new Error('Invalid response from server'));
-                        }
+                        const response = JSON.parse(xhr.responseText);
+                        resolve({
+                            url: response.secure_url,
+                            publicId: response.public_id,
+                            type: file.type.startsWith('video/') ? 'video' : 'image'
+                        });
                     } else {
-                        try {
-                            const errorResponse = JSON.parse(xhr.responseText);
-                            reject(new Error(`Upload failed: ${errorResponse.error?.message || xhr.statusText}`));
-                        } catch {
-                            reject(new Error(`Upload failed with status ${xhr.status}`));
-                        }
+                        reject(new Error(`Upload failed with status ${xhr.status}`));
                     }
                 });
 
                 xhr.addEventListener('error', () => {
-                    reject(new Error('Network error during upload'));
+                    reject(new Error('Upload error'));
                 });
 
                 xhr.addEventListener('abort', () => {
                     reject(new Error('Upload aborted'));
                 });
 
-                // ✅ PERBAIKAN: URL yang benar untuk unsigned upload
                 const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`;
-                console.log('📤 Uploading to:', uploadUrl);
-                console.log('📋 Upload preset:', CLOUDINARY_UPLOAD_PRESET);
-                
                 xhr.open('POST', uploadUrl);
                 xhr.send(formData);
             });
@@ -499,7 +602,7 @@
                 if (snapshot.exists()) {
                     snapshot.forEach((child) => {
                         const msg = child.val();
-                        if (msg.senderId !== currentUser.uid && !msg.isRead) {
+                        if (msg.senderId !== currentUser.uid && !msg.isRead && !msg.isDeleted) {
                             unreadCount++;
                         }
                     });
@@ -601,14 +704,29 @@
                     messagesArea.innerHTML = '<p class="no-messages" style="text-align:center; color:#999; padding:2rem;">Belum ada pesan. Mulai percakapan!</p>';
                 } else {
                     messages.forEach(msg => {
+                        // Skip deleted messages untuk sender lain
+                        if (msg.isDeleted && msg.senderId !== currentUser.uid) {
+                            return;
+                        }
+
+                        // Skip jika sudah dihapus untuk current user
+                        if (msg.deletedFor && msg.deletedFor[currentUser.uid]) {
+                            return;
+                        }
+
                         const messageElement = document.createElement('div');
                         messageElement.className = `message ${msg.senderId === currentUser.uid ? 'sent' : 'received'}`;
+                        messageElement.setAttribute('data-message-id', msg.key);
+                        messageElement.setAttribute('data-sender-id', msg.senderId);
                         
                         const timeStr = formatTime(msg.timestamp);
                         
                         let contentHtml = '';
                         
-                        if (msg.mediaUrl && msg.mediaType) {
+                        if (msg.isDeleted) {
+                            // Deleted message indicator
+                            contentHtml = '<p style="font-style: italic; color: #999;">🗑️ Pesan telah dihapus</p>';
+                        } else if (msg.mediaUrl && msg.mediaType) {
                             // Media message
                             if (msg.mediaType === 'image') {
                                 contentHtml = `
@@ -637,7 +755,7 @@
                         }
                         
                         messageElement.innerHTML = `
-                            <div class="message-bubble">
+                            <div class="message-bubble" oncontextmenu="showMessageMenu(event, '${msg.key}')">
                                 ${contentHtml}
                                 <span class="message-time">
                                     ${timeStr}
@@ -679,25 +797,20 @@
                 senderName: currentUserName,
                 text: text,
                 timestamp: Date.now(),
-                isRead: false
+                isRead: false,
+                isDeleted: false,
+                deletedFor: {}
             };
 
             try {
                 if (selectedMediaFile) {
                     document.getElementById('uploadProgress').style.display = 'flex';
                     
-                    try {
-                        const uploadResult = await uploadToCloudinary(selectedMediaFile);
-                        messageData.mediaUrl = uploadResult.url;
-                        messageData.mediaType = uploadResult.type;
-                        
-                        console.log('✅ Media uploaded:', uploadResult.type);
-                    } catch (uploadError) {
-                        console.error('❌ Upload error:', uploadError);
-                        alert('❌ Error upload media: ' + uploadError.message);
-                        document.getElementById('uploadProgress').style.display = 'none';
-                        return;
-                    }
+                    const uploadResult = await uploadToCloudinary(selectedMediaFile);
+                    messageData.mediaUrl = uploadResult.url;
+                    messageData.mediaType = uploadResult.type;
+                    
+                    console.log('✅ Media uploaded:', uploadResult.type);
                     
                     document.getElementById('uploadProgress').style.display = 'none';
                 }
