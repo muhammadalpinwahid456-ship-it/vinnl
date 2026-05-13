@@ -85,14 +85,48 @@
 
                     <!-- INPUT AREA -->
                     <div class="input-area">
-                        <input 
-                            type="text" 
-                            id="messageInput" 
-                            class="message-input" 
-                            placeholder="Ketik pesan..." 
-                            onkeypress="handleKeyPress(event)"
-                        >
-                        <button class="btn-send" onclick="sendMessage()">Kirim</button>
+                        <!-- Media Upload Buttons -->
+                        <div class="media-upload-section">
+                            <label class="media-btn" title="Kirim Foto" onclick="openMediaPicker('image')">
+                                <span>📷</span>
+                                <input type="file" id="imageInput" accept="image/*" style="display: none;" onchange="handleMediaSelect(event)">
+                            </label>
+                            <label class="media-btn" title="Kirim Video" onclick="openMediaPicker('video')">
+                                <span>🎥</span>
+                                <input type="file" id="videoInput" accept="video/*" style="display: none;" onchange="handleMediaSelect(event)">
+                            </label>
+                        </div>
+
+                        <!-- Media Preview (sebelum dikirim) -->
+                        <div id="mediaPreviewContainer" class="media-preview-container" style="display: none;">
+                            <div class="media-preview-box">
+                                <div id="mediaPreview" class="media-preview"></div>
+                                <div class="preview-caption">
+                                    <input 
+                                        type="text" 
+                                        id="mediaCaptionInput" 
+                                        placeholder="Tambah caption..." 
+                                        maxlength="200"
+                                    >
+                                </div>
+                                <div class="preview-actions">
+                                    <button class="btn-cancel" onclick="cancelMediaPreview()">Batalkan</button>
+                                    <button class="btn-send-media" onclick="sendMediaMessage()">Kirim</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Text Input (hidden when showing media preview) -->
+                        <div id="textInputContainer" class="text-input-container">
+                            <input 
+                                type="text" 
+                                id="messageInput" 
+                                class="message-input" 
+                                placeholder="Ketik pesan..." 
+                                onkeypress="handleKeyPress(event)"
+                            >
+                            <button class="btn-send" onclick="sendMessage()">Kirim</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -116,6 +150,21 @@
 
             <div class="modal-users-list" id="modalUsersList">
                 <!-- User list akan di-populate di sini -->
+            </div>
+        </div>
+    </div>
+
+    <!-- MEDIA VIEWER MODAL -->
+    <div id="mediaViewerModal" class="modal" style="display: none;">
+        <div class="media-viewer-content">
+            <button class="modal-close" onclick="closeMediaViewer()">✕</button>
+            <div class="media-viewer-body">
+                <img id="viewerImage" src="" alt="Media" style="display: none; max-width: 90vw; max-height: 90vh; object-fit: contain;">
+                <video id="viewerVideo" controls style="display: none; max-width: 90vw; max-height: 90vh; object-fit: contain;"></video>
+            </div>
+            <div class="media-viewer-info">
+                <p id="mediaViewerCaption" class="media-viewer-caption"></p>
+                <button class="btn-download-media" onclick="downloadMedia()">📥 Download</button>
             </div>
         </div>
     </div>
@@ -158,12 +207,17 @@
         let allUsers = [];
         let currentUserName = '';
         let messagesUnsubscribe = null;
-        let unreadCounts = {}; // Store unread message counts
-        let usersUnsubscribeList = []; // Store all user listeners
+        let unreadCounts = {};
+        let usersUnsubscribeList = [];
+        let selectedMediaFile = null;
+        let currentViewingMedia = null;
+
+        // ===== CLOUDINARY CONFIG =====
+        const CLOUDINARY_CLOUD_NAME = "djc9oemca";
+        const CLOUDINARY_UPLOAD_PRESET = "chat_media_upload";
 
         // ===== HELPER FUNCTIONS =====
         function generateChatId(userId1, userId2) {
-            // PERBAIKAN: Sort IDs agar konsisten
             const ids = [userId1, userId2].sort();
             return `${ids[0]}_${ids[1]}`;
         }
@@ -181,6 +235,252 @@
             return div.innerHTML;
         }
 
+        // ===== MEDIA UPLOAD TO CLOUDINARY =====
+        async function uploadToCloudinary(file) {
+            return new Promise((resolve, reject) => {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+                formData.append('cloud_name', CLOUDINARY_CLOUD_NAME);
+
+                const xhr = new XMLHttpRequest();
+
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percentComplete = Math.round((e.loaded / e.total) * 100);
+                        console.log(`Upload progress: ${percentComplete}%`);
+                    }
+                });
+
+                xhr.addEventListener('load', () => {
+                    if (xhr.status === 200) {
+                        const response = JSON.parse(xhr.responseText);
+                        resolve({
+                            url: response.secure_url,
+                            publicId: response.public_id,
+                            type: file.type.startsWith('video/') ? 'video' : 'image'
+                        });
+                    } else {
+                        reject(new Error('Upload failed'));
+                    }
+                });
+
+                xhr.addEventListener('error', () => {
+                    reject(new Error('Upload error'));
+                });
+
+                const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`;
+                xhr.open('POST', uploadUrl);
+                xhr.send(formData);
+            });
+        }
+
+        // ===== OPEN MEDIA PICKER =====
+        window.openMediaPicker = function(type) {
+            if (type === 'image') {
+                document.getElementById('imageInput').click();
+            } else if (type === 'video') {
+                document.getElementById('videoInput').click();
+            }
+        };
+
+        // ===== HANDLE MEDIA SELECT =====
+        window.handleMediaSelect = async function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // Validate file size
+            const maxSize = file.type.startsWith('video/') ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
+            if (file.size > maxSize) {
+                alert(`❌ File terlalu besar! Max: ${file.type.startsWith('video/') ? '50MB' : '10MB'}`);
+                return;
+            }
+
+            selectedMediaFile = file;
+
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const previewDiv = document.getElementById('mediaPreview');
+                previewDiv.innerHTML = '';
+
+                if (file.type.startsWith('image/')) {
+                    previewDiv.innerHTML = `<img src="${e.target.result}" alt="preview" style="width: 100%; height: 100%; object-fit: cover;">`;
+                } else if (file.type.startsWith('video/')) {
+                    previewDiv.innerHTML = `<video src="${e.target.result}" controls style="width: 100%; height: 100%; object-fit: cover;"></video>`;
+                }
+
+                // Show media preview container
+                document.getElementById('mediaPreviewContainer').style.display = 'flex';
+                document.getElementById('textInputContainer').style.display = 'none';
+                document.getElementById('mediaCaptionInput').focus();
+            };
+            reader.readAsDataURL(file);
+
+            // Reset input
+            event.target.value = '';
+        };
+
+        // ===== CANCEL MEDIA PREVIEW =====
+        window.cancelMediaPreview = function() {
+            selectedMediaFile = null;
+            document.getElementById('mediaPreviewContainer').style.display = 'none';
+            document.getElementById('textInputContainer').style.display = 'flex';
+            document.getElementById('messageInput').focus();
+            document.getElementById('mediaCaptionInput').value = '';
+        };
+
+        // ===== SEND MEDIA MESSAGE =====
+        window.sendMediaMessage = async function() {
+            if (!selectedMediaFile || !selectedUserId || !currentUser) {
+                alert('❌ Error: Data tidak lengkap');
+                return;
+            }
+
+            const caption = document.getElementById('mediaCaptionInput').value.trim();
+            const sendBtn = document.querySelector('.btn-send-media');
+            
+            sendBtn.disabled = true;
+            sendBtn.textContent = '⏳ Mengirim...';
+
+            try {
+                // Upload ke Cloudinary
+                console.log('📤 Uploading media to Cloudinary...');
+                const uploadResult = await uploadToCloudinary(selectedMediaFile);
+
+                // Buat chat ID
+                const chatId = generateChatId(currentUser.uid, selectedUserId);
+                const messagesRef = ref(database, `chats/${chatId}/messages`);
+
+                // Prepare message data
+                const messageData = {
+                    senderId: currentUser.uid,
+                    senderName: currentUserName,
+                    text: caption || '(Media)',
+                    mediaUrl: uploadResult.url,
+                    mediaType: uploadResult.type,
+                    mediaPublicId: uploadResult.publicId,
+                    timestamp: Date.now(),
+                    isRead: false,
+                    isMedia: true
+                };
+
+                // Push ke database
+                await push(messagesRef, messageData);
+
+                console.log('✅ Media berhasil dikirim');
+                cancelMediaPreview();
+                
+            } catch (error) {
+                console.error('❌ Error sending media:', error);
+                alert('❌ Gagal mengirim media: ' + error.message);
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Kirim';
+            }
+        };
+
+        // ===== DISPLAY MEDIA MESSAGE =====
+        function createMediaMessageElement(msg) {
+            const messageElement = document.createElement('div');
+            messageElement.className = `message ${msg.senderId === currentUser.uid ? 'sent' : 'received'}`;
+
+            const timeStr = formatTime(msg.timestamp);
+            const isImage = msg.mediaType === 'image';
+            const mediaHtml = isImage 
+                ? `<img src="${msg.mediaUrl}" alt="image" class="message-media" onclick="openMediaViewer('${msg.mediaUrl}', '${msg.mediaType}', '${escapeHtml(msg.text)}')" style="cursor: pointer;">`
+                : `<video src="${msg.mediaUrl}" class="message-media" onclick="openMediaViewer('${msg.mediaUrl}', '${msg.mediaType}', '${escapeHtml(msg.text)}')" style="cursor: pointer;"></video>`;
+
+            let statusHtml = '';
+            if (msg.senderId === currentUser.uid) {
+                statusHtml = `<span class="message-status"><span class="tick ${msg.isRead ? 'read' : ''}">✔✔</span></span>`;
+            }
+
+            messageElement.innerHTML = `
+                <div class="message-bubble media-message-bubble">
+                    <div class="media-container">
+                        ${mediaHtml}
+                        ${msg.text && msg.text !== '(Media)' ? `<p class="media-caption">${escapeHtml(msg.text)}</p>` : ''}
+                    </div>
+                    <span class="message-time">
+                        ${timeStr}
+                        ${statusHtml}
+                    </span>
+                    <div class="media-actions">
+                        <button class="btn-download-small" onclick="downloadMediaDirect('${msg.mediaUrl}', '${msg.mediaType}')" title="Download">📥</button>
+                    </div>
+                </div>
+            `;
+
+            return messageElement;
+        }
+
+        // ===== OPEN MEDIA VIEWER =====
+        window.openMediaViewer = function(mediaUrl, mediaType, caption) {
+            currentViewingMedia = { url: mediaUrl, type: mediaType, caption: caption };
+            
+            const modal = document.getElementById('mediaViewerModal');
+            const viewerImage = document.getElementById('viewerImage');
+            const viewerVideo = document.getElementById('viewerVideo');
+            const captionElement = document.getElementById('mediaViewerCaption');
+
+            viewerImage.style.display = 'none';
+            viewerVideo.style.display = 'none';
+
+            if (mediaType === 'image') {
+                viewerImage.src = mediaUrl;
+                viewerImage.style.display = 'block';
+            } else if (mediaType === 'video') {
+                viewerVideo.src = mediaUrl;
+                viewerVideo.style.display = 'block';
+            }
+
+            captionElement.textContent = caption || '(Media)';
+            modal.style.display = 'flex';
+        };
+
+        // ===== CLOSE MEDIA VIEWER =====
+        window.closeMediaViewer = function() {
+            document.getElementById('mediaViewerModal').style.display = 'none';
+            const viewerVideo = document.getElementById('viewerVideo');
+            if (viewerVideo) {
+                viewerVideo.pause();
+            }
+        };
+
+        // ===== DOWNLOAD MEDIA =====
+        window.downloadMedia = function() {
+            if (currentViewingMedia) {
+                downloadMediaDirect(currentViewingMedia.url, currentViewingMedia.type);
+            }
+        };
+
+        // ===== DOWNLOAD MEDIA DIRECT =====
+        window.downloadMediaDirect = function(mediaUrl, mediaType) {
+            const extension = mediaType === 'video' ? 'mp4' : 'jpg';
+            const filename = `alvin-chat-${Date.now()}.${extension}`;
+
+            const xhr = new XMLHttpRequest();
+            xhr.responseType = 'blob';
+            xhr.onload = () => {
+                const blob = xhr.response;
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                console.log('✅ Media downloaded:', filename);
+            };
+            xhr.onerror = () => {
+                alert('❌ Gagal mengunduh media');
+            };
+            xhr.open('GET', mediaUrl);
+            xhr.send();
+        };
+
         // ===== UPDATE UNREAD COUNT =====
         function updateUnreadCount(userId, count) {
             unreadCounts[userId] = count;
@@ -189,7 +489,6 @@
             updateBrowserTitle();
         }
 
-        // ===== UPDATE USER ITEM BADGE =====
         function updateUserItemBadge(userId, count) {
             const userItem = document.querySelector(`[data-user-id="${userId}"]`);
             if (userItem) {
@@ -208,7 +507,6 @@
             }
         }
 
-        // ===== UPDATE MODAL USER BADGE =====
         function updateModalUserBadge(userId, count) {
             const modalUserItem = document.querySelector(`.modal-user-item[data-user-id="${userId}"]`);
             if (modalUserItem) {
@@ -227,7 +525,6 @@
             }
         }
 
-        // ===== UPDATE BROWSER TITLE WITH TOTAL UNREAD =====
         function updateBrowserTitle() {
             const totalUnread = Object.values(unreadCounts).reduce((sum, count) => sum + count, 0);
             if (totalUnread > 0) {
@@ -237,7 +534,6 @@
             }
         }
 
-        // ===== COUNT UNREAD MESSAGES =====
         function countUnreadMessages(userId) {
             if (!selectedUserId || selectedUserId !== userId) {
                 const chatId = generateChatId(currentUser.uid, userId);
@@ -268,13 +564,11 @@
         document.getElementById('profileUpload').onchange = async (e) => {
             const file = e.target.files[0];
             if (file) {
-                // Validate file size (max 5MB)
                 if (file.size > 5 * 1024 * 1024) {
                     alert('❌ Ukuran file terlalu besar (max 5MB)');
                     return;
                 }
 
-                // Validate file type
                 if (!file.type.startsWith('image/')) {
                     alert('❌ File harus berupa gambar');
                     return;
@@ -284,14 +578,9 @@
                 reader.onload = async (event) => {
                     try {
                         const base64Image = event.target.result;
-                        
-                        // Update UI langsung
                         document.getElementById('myAvatar').src = base64Image;
-                        
-                        // Simpan ke Database
                         const userRef = ref(database, 'users/' + currentUser.uid);
                         await update(userRef, { photoURL: base64Image });
-                        
                         console.log('✅ Foto profil berhasil diperbarui');
                     } catch (error) {
                         console.error('❌ Error uploading photo:', error);
@@ -318,7 +607,6 @@
             }
         });
 
-        // Load current user data
         function loadCurrentUser() {
             const userRef = ref(database, 'users/' + currentUser.uid);
             onValue(userRef, (snapshot) => {
@@ -326,19 +614,13 @@
                     const userData = snapshot.val();
                     currentUserName = userData.fullname || userData.email.split('@')[0];
                     document.getElementById('currentUserName').textContent = currentUserName;
-                    
-                    // Load profile photo
                     if (userData.photoURL) {
                         document.getElementById('myAvatar').src = userData.photoURL;
                     }
-                    
                     console.log('✅ Current user loaded:', currentUserName);
                 } else {
-                    // PERBAIKAN: Handle jika data tidak ada
                     currentUserName = currentUser.displayName || currentUser.email.split('@')[0];
                     document.getElementById('currentUserName').textContent = currentUserName;
-                    
-                    // Simpan data default ke database
                     set(userRef, {
                         fullname: currentUserName,
                         email: currentUser.email,
@@ -351,12 +633,10 @@
             });
         }
 
-        // Load semua user (PERBAIKAN: Better error handling + Unread tracking)
         function loadAllUsers() {
             const usersRef = ref(database, 'users');
             onValue(usersRef, (snapshot) => {
                 allUsers = [];
-                // Cleanup previous listeners
                 usersUnsubscribeList.forEach(unsub => unsub());
                 usersUnsubscribeList = [];
                 
@@ -372,8 +652,6 @@
                                     email: userData.email,
                                     photoURL: userData.photoURL || 'https://via.placeholder.com/40'
                                 });
-                                
-                                // Setup unread message listener untuk setiap user
                                 setupUnreadListener(userId);
                             }
                         }
@@ -389,7 +667,6 @@
             });
         }
 
-        // ===== SETUP UNREAD MESSAGE LISTENER =====
         function setupUnreadListener(userId) {
             const chatId = generateChatId(currentUser.uid, userId);
             const messagesRef = ref(database, `chats/${chatId}/messages`);
@@ -412,7 +689,6 @@
             usersUnsubscribeList.push(unsubscribe);
         }
 
-        // Display users di sidebar
         function displayUsers() {
             const usersList = document.getElementById('usersList');
             usersList.innerHTML = '';
@@ -445,7 +721,6 @@
             });
         }
 
-        // Select user untuk chat (PERBAIKAN: Cleanup listener sebelum load baru)
         window.selectUser = function(userId, userName, photoURL) {
             selectedUserId = userId;
             document.getElementById('chatUserName').textContent = escapeHtml(userName);
@@ -458,21 +733,19 @@
             document.getElementById('userStatus').textContent = 'online';
             document.getElementById('welcomeMessage').style.display = 'none';
             document.getElementById('chatWindow').style.display = 'flex';
-            document.getElementById('messagesArea').innerHTML = ''; // Clear previous messages
+            document.getElementById('messagesArea').innerHTML = '';
             loadMessages();
             markAsRead(generateChatId(currentUser.uid, selectedUserId));
-            updateUnreadCount(userId, 0); // Clear unread count
-            updateBrowserTitle(); // Update browser title
+            updateUnreadCount(userId, 0);
+            updateBrowserTitle();
         };
 
-        // Load messages (PERBAIKAN: Unsubscribe sebelum subscribe baru)
         function loadMessages() {
             if (!selectedUserId || !currentUser) {
                 console.error('❌ Missing selectedUserId or currentUser');
                 return;
             }
 
-            // Cleanup previous listener
             if (messagesUnsubscribe) {
                 messagesUnsubscribe();
             }
@@ -495,38 +768,40 @@
                     });
                 }
 
-                // Sort messages by timestamp
                 messages.sort((a, b) => a.timestamp - b.timestamp);
 
                 if (messages.length === 0) {
                     messagesArea.innerHTML = '<p class="no-messages" style="text-align:center; color:#999; padding:2rem;">Belum ada pesan. Mulai percakapan!</p>';
                 } else {
                     messages.forEach(msg => {
-                        const messageElement = document.createElement('div');
-                        messageElement.className = `message ${msg.senderId === currentUser.uid ? 'sent' : 'received'}`;
-                        
-                        // Format waktu
-                        const timeStr = formatTime(msg.timestamp);
-                        
-                        // Tampilkan status baca untuk pesan yang dikirim
-                        let statusHtml = '';
-                        if (msg.senderId === currentUser.uid) {
-                            statusHtml = `<span class="message-status"><span class="tick ${msg.isRead ? 'read' : ''}">✔✔</span></span>`;
+                        // Check if message is media
+                        if (msg.isMedia && msg.mediaUrl) {
+                            messagesArea.appendChild(createMediaMessageElement(msg));
+                        } else {
+                            // Regular text message
+                            const messageElement = document.createElement('div');
+                            messageElement.className = `message ${msg.senderId === currentUser.uid ? 'sent' : 'received'}`;
+                            
+                            const timeStr = formatTime(msg.timestamp);
+                            
+                            let statusHtml = '';
+                            if (msg.senderId === currentUser.uid) {
+                                statusHtml = `<span class="message-status"><span class="tick ${msg.isRead ? 'read' : ''}">✔✔</span></span>`;
+                            }
+                            
+                            messageElement.innerHTML = `
+                                <div class="message-bubble">
+                                    <p>${escapeHtml(msg.text)}</p>
+                                    <span class="message-time">
+                                        ${timeStr}
+                                        ${statusHtml}
+                                    </span>
+                                </div>
+                            `;
+                            messagesArea.appendChild(messageElement);
                         }
-                        
-                        messageElement.innerHTML = `
-                            <div class="message-bubble">
-                                <p>${escapeHtml(msg.text)}</p>
-                                <span class="message-time">
-                                    ${timeStr}
-                                    ${statusHtml}
-                                </span>
-                            </div>
-                        `;
-                        messagesArea.appendChild(messageElement);
                     });
 
-                    // Auto scroll ke bawah
                     messagesArea.scrollTop = messagesArea.scrollHeight;
                 }
             }, (error) => {
@@ -535,7 +810,6 @@
             });
         }
 
-        // Send message (PERBAIKAN: Better validation dan error handling)
         window.sendMessage = function() {
             const messageInput = document.getElementById('messageInput');
             const text = messageInput.value.trim();
@@ -559,7 +833,8 @@
                 senderName: currentUserName,
                 text: text,
                 timestamp: Date.now(),
-                isRead: false
+                isRead: false,
+                isMedia: false
             };
 
             push(messagesRef, messageData)
@@ -574,7 +849,6 @@
                 });
         };
 
-        // Handle Enter key
         window.handleKeyPress = function(event) {
             if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
@@ -582,14 +856,12 @@
             }
         };
 
-        // Mark messages as read
         function markAsRead(chatId) {
             const messagesRef = ref(database, `chats/${chatId}/messages`);
             get(messagesRef).then((snapshot) => {
                 if (snapshot.exists()) {
                     snapshot.forEach((child) => {
                         const msg = child.val();
-                        // Tandai pesan dari user lain sebagai sudah dibaca
                         if (msg.senderId !== currentUser.uid && !msg.isRead) {
                             update(ref(database, `chats/${chatId}/messages/${child.key}`), { isRead: true });
                         }
@@ -598,10 +870,8 @@
             }).catch(err => console.error('❌ Error marking as read:', err));
         }
 
-        // Close chat
         window.closeChat = function() {
             selectedUserId = null;
-            // Cleanup listener
             if (messagesUnsubscribe) {
                 messagesUnsubscribe();
                 messagesUnsubscribe = null;
@@ -609,10 +879,10 @@
             document.getElementById('chatWindow').style.display = 'none';
             document.getElementById('welcomeMessage').style.display = 'flex';
             document.getElementById('messageInput').value = '';
+            cancelMediaPreview();
             updateBrowserTitle();
         };
 
-        // Search users
         window.searchUsers = function() {
             const searchTerm = document.getElementById('searchUsers').value.toLowerCase();
             const usersList = document.getElementById('usersList');
@@ -651,19 +921,16 @@
             });
         };
 
-        // Open new chat modal
         window.openNewChat = function() {
             document.getElementById('newChatModal').classList.add('show');
             populateModalUsers();
         };
 
-        // Close new chat modal
         window.closeNewChat = function() {
             document.getElementById('newChatModal').classList.remove('show');
             document.getElementById('modalSearchUsers').value = '';
         };
 
-        // Populate modal users
         function populateModalUsers() {
             const modalUsersList = document.getElementById('modalUsersList');
             modalUsersList.innerHTML = '';
@@ -699,7 +966,6 @@
             });
         }
 
-        // Search modal users
         window.searchModalUsers = function() {
             const searchTerm = document.getElementById('modalSearchUsers').value.toLowerCase();
             const modalUsersList = document.getElementById('modalUsersList');
@@ -741,14 +1007,11 @@
             });
         };
 
-        // Logout
         window.logoutChat = function() {
             if (confirm('Apakah Anda yakin ingin logout?')) {
-                // Cleanup listener
                 if (messagesUnsubscribe) {
                     messagesUnsubscribe();
                 }
-                // Cleanup unread listeners
                 usersUnsubscribeList.forEach(unsub => unsub());
                 usersUnsubscribeList = [];
                 
@@ -761,7 +1024,6 @@
             }
         };
 
-        // Close modal when clicking outside
         window.onclick = function(event) {
             const modal = document.getElementById('newChatModal');
             if (event.target === modal) {
