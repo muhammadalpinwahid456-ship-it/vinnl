@@ -5,18 +5,26 @@
     box-sizing: border-box;
 }
 
+html {
+    height: 100%;
+}
+
 body {
     font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     background: #0a0e27;
-    height: 100vh;
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
     color: #e0e6ed;
 }
 
 .chat-container {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100%;
+    max-height: 100%;
     background: #0d1117;
+    overflow: hidden;
 }
 
 /* Header */
@@ -102,6 +110,8 @@ body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    height: 100%;
+    flex-shrink: 0;
 }
 
 .sidebar-header {
@@ -180,10 +190,10 @@ body {
 
 .users-list {
     flex: 1;
-    overflow-y: scroll;
+    overflow-y: auto;
+    overflow-x: hidden;
     padding: 8px 0;
     min-height: 0;
-    height: 0;
 }
 
 .user-item {
@@ -943,9 +953,30 @@ body {
 
     .chat-sidebar {
         width: 100%;
-        max-height: 40vh;
+        height: 45vh;
+        max-height: 45vh;
+        min-height: 0;
         border-right: none;
         border-bottom: 1px solid #2d333b;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    #panelPesan {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .users-list {
+        flex: 1;
+        overflow-y: scroll;
+        -webkit-overflow-scrolling: touch;
+        min-height: 0;
+        height: 0;
     }
 
     .message-bubble {
