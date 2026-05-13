@@ -248,7 +248,9 @@ import {
     signOut,
     onAuthStateChanged,
     GoogleAuthProvider,
-    signInWithPopup
+    signInWithPopup,
+    signInWithRedirect,
+    getRedirectResult
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
@@ -348,55 +350,109 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
 });
 
 // ================= LOGIN GOOGLE (DIPERBAIKI) =================
-window.signUpWithGoogle = async function () {
-    try {
-        const result = await signInWithPopup(auth, provider);
-        const user = result.user;
-        currentUserId = user.uid;
-
-        console.log('🔐 User dari Google:', user.uid);
-        
-        // ✅ PERBAIKAN: Set data langsung tanpa try-get terlebih dahulu
-        // Ini menghindari PERMISSION_DENIED error
-        const userRef = ref(database, 'users/' + user.uid);
-        
-        const userData = {
+// ================= HELPER: SIMPAN DATA GOOGLE USER =================
+async function saveGoogleUserData(user) {
+    const userRef = ref(database, 'users/' + user.uid);
+    
+    // Cek apakah user sudah ada di database
+    const snapshot = await get(userRef);
+    
+    if (snapshot.exists()) {
+        // User sudah ada — update hanya field yang boleh diupdate (jangan overwrite semua)
+        await update(userRef, {
+            fullname: user.displayName || snapshot.val().fullname || user.email.split('@')[0],
+            email: user.email,
+            photoURL: user.photoURL || snapshot.val().photoURL || ''
+        });
+        console.log('✅ User data diperbarui');
+        return snapshot.val();
+    } else {
+        // User baru — buat data lengkap
+        const newUserData = {
             fullname: user.displayName || user.email.split('@')[0],
             email: user.email,
-            photoURL: user.photoURL || 'https://via.placeholder.com/40',
+            photoURL: user.photoURL || '',
             createdAt: new Date().toISOString(),
             description: ''
         };
+        await set(userRef, newUserData);
+        console.log('✅ User baru berhasil disimpan');
+        return newUserData;
+    }
+}
+
+window.signUpWithGoogle = async function () {
+    try {
+        provider.setCustomParameters({ prompt: 'select_account' });
         
-        // Gunakan set() untuk overwrite jika sudah ada, atau create jika baru
-        await set(userRef, userData);
-        console.log('✅ User data berhasil disimpan');
+        let result;
+        try {
+            // Coba popup dulu
+            result = await signInWithPopup(auth, provider);
+        } catch (popupError) {
+            // Jika popup diblokir, gunakan redirect sebagai fallback
+            if (popupError.code === 'auth/popup-blocked' || 
+                popupError.code === 'auth/popup-closed-by-user') {
+                console.log('Popup diblokir, menggunakan redirect...');
+                await signInWithRedirect(auth, provider);
+                return; // Halaman akan redirect, proses dilanjutkan di onAuthStateChanged
+            }
+            throw popupError;
+        }
+
+        const user = result.user;
+        currentUserId = user.uid;
+        console.log('🔐 User dari Google:', user.uid);
+        
+        const userData = await saveGoogleUserData(user);
         
         document.getElementById("profileName").textContent = userData.fullname;
         document.getElementById("profileEmail").textContent = userData.email;
-        document.getElementById("profileDate").textContent = new Date().toLocaleDateString('id-ID');
+        document.getElementById("profileDate").textContent = 
+            new Date(userData.createdAt).toLocaleDateString('id-ID');
         
         alert("✅ Login Google berhasil!");
         switchTab("profile");
+        toggleAuthModal();
         
     } catch (error) {
         console.error('❌ Google Sign-In error:', error);
         
-        // Pesan error yang lebih informatif
         if (error.code === 'auth/popup-blocked') {
-            alert('❌ Pop-up terblokir. Izinkan pop-up di browser Anda');
+            alert('❌ Pop-up terblokir. Aktifkan pop-up di browser lalu coba lagi.');
         } else if (error.code === 'auth/cancelled-popup-request') {
-            alert('❌ Proses login dibatalkan');
+            // Diabaikan — user membuka popup baru
         } else if (error.code === 'auth/popup-closed-by-user') {
-            alert('❌ Pop-up ditutup sebelum proses selesai');
-        } else if (error.code === 'PERMISSION_DENIED') {
-            alert('❌ Error: Database permission denied. Hubungi administrator.');
-            console.error('Database Rules Issue - Silakan periksa database rules di Firebase Console');
+            // Diabaikan — user menutup popup sendiri
+        } else if (error.code === 'auth/unauthorized-domain') {
+            alert('❌ Domain tidak diizinkan. Tambahkan domain ini di Firebase Console > Authentication > Authorized Domains.');
+        } else if (error.message && error.message.includes('PERMISSION_DENIED')) {
+            alert('❌ Database permission denied. Pastikan Database Rules sudah diupdate di Firebase Console.');
         } else {
             alert('❌ Error: ' + error.message);
         }
     }
 };
+
+// Handle redirect result (untuk kasus signInWithRedirect)
+getRedirectResult(auth).then(async (result) => {
+    if (result && result.user) {
+        const user = result.user;
+        currentUserId = user.uid;
+        const userData = await saveGoogleUserData(user);
+        
+        document.getElementById("profileName").textContent = userData.fullname;
+        document.getElementById("profileEmail").textContent = userData.email;
+        document.getElementById("profileDate").textContent = 
+            new Date(userData.createdAt).toLocaleDateString('id-ID');
+        
+        switchTab("profile");
+    }
+}).catch((error) => {
+    if (error.code !== 'auth/no-auth-event') {
+        console.error('Redirect result error:', error);
+    }
+});
 
 // ================= LOGOUT =================
 window.logout = async function () {
