@@ -309,6 +309,7 @@
         let selectedUserId = null;
         let allUsers = [];
         let currentUserName = '';
+        let currentUserPhoto = 'https://via.placeholder.com/52';
         let messagesUnsubscribe = null;
         let unreadCounts = {};
         let usersUnsubscribeList = [];
@@ -319,7 +320,7 @@
         let selectedMessageElement = null;
 
         // ===== PRESENCE SYSTEM =====
-        let presenceListeners = {}; // track active listeners per userId
+        let presenceListeners = {};
 
         function setupMyPresence(uid) {
             const presenceRef = ref(database, `presence/${uid}`);
@@ -327,13 +328,11 @@
 
             onValue(connectedRef, (snap) => {
                 if (snap.val() === true) {
-                    // Set online
                     set(presenceRef, {
                         online: true,
                         lastSeen: serverTimestamp()
                     });
 
-                    // Set offline + lastSeen when disconnected
                     onDisconnect(presenceRef).set({
                         online: false,
                         lastSeen: serverTimestamp()
@@ -363,13 +362,11 @@
             if (diffDays === 0) return `Terakhir aktif hari ini · ${timeStr}`;
             if (diffDays === 1) return `Terakhir aktif kemarin · ${timeStr}`;
             if (diffDays < 7) return `Terakhir aktif ${dayName} · ${timeStr}`;
-            // Lebih dari seminggu: tampilkan tanggal lengkap
             const d = new Date(timestamp);
             return `Terakhir aktif ${d.getDate()} ${months[d.getMonth()]} · ${timeStr}`;
         }
 
         function listenUserPresence(userId) {
-            // Unsubscribe existing listener for this user if any
             if (presenceListeners[userId]) {
                 presenceListeners[userId]();
             }
@@ -380,7 +377,6 @@
                 const isOnline = data && data.online === true;
                 const lastSeen = data && data.lastSeen;
 
-                // Update chat window header status (if this user is selected)
                 if (selectedUserId === userId) {
                     const statusEl = document.getElementById('userStatus');
                     if (statusEl) {
@@ -394,10 +390,8 @@
                     }
                 }
 
-                // Update sidebar dot indicator
                 updateSidebarPresence(userId, isOnline);
 
-                // Update sidebar status text below username
                 const statusTextEls = document.querySelectorAll(`[data-user-id="${userId}"] .user-presence-label`);
                 statusTextEls.forEach(el => {
                     if (isOnline) {
@@ -414,7 +408,6 @@
         }
 
         function updateSidebarPresence(userId, isOnline) {
-            // Update in main usersList and modal usersList
             const selectors = [
                 `#usersList [data-user-id="${userId}"] .presence-dot`,
                 `#modalUsersList [data-user-id="${userId}"] .presence-dot`
@@ -428,11 +421,9 @@
             });
         }
 
-        // ===== CLOUDINARY CONFIG =====
         const CLOUDINARY_CLOUD_NAME = "djc9oemca";
         const CLOUDINARY_UPLOAD_PRESET = "chat_unsigned";
 
-        // ===== HELPER FUNCTIONS =====
         function generateChatId(userId1, userId2) {
             const ids = [userId1, userId2].sort();
             return `${ids[0]}_${ids[1]}`;
@@ -457,7 +448,6 @@
             event.stopPropagation();
 
             const bubble = event.currentTarget;
-
             selectedMessageId = messageKey;
             selectedMessageElement = bubble;
 
@@ -481,7 +471,6 @@
             }
         };
 
-        // Long-press support untuk mobile
         let longPressTimer = null;
         document.addEventListener('touchstart', function(e) {
             const bubble = e.target.closest('.message-bubble[data-message-key]');
@@ -530,7 +519,6 @@
             });
         };
 
-        // Batalkan pengiriman - Instagram style: penerima tidak melihat pesan sama sekali
         window.unsendMessage = function() {
             if (!selectedMessageId || !selectedUserId) {
                 alert('❌ Error: Pesan tidak ditemukan');
@@ -554,7 +542,6 @@
                         return;
                     }
 
-                    // isUnsent: penerima tidak melihat sama sekali, pengirim melihat label "Pesan dibatalkan"
                     update(messageRef, {
                         isUnsent: true,
                         text: '',
@@ -575,7 +562,6 @@
             });
         };
 
-        // Tetap pertahankan deleteMessageForEveryone sebagai alias (kompatibilitas)
         window.deleteMessageForEveryone = window.unsendMessage;
 
         function closeMessageMenu() {
@@ -664,6 +650,7 @@
                     try {
                         const base64Image = event.target.result;
                         document.getElementById('myAvatar').src = base64Image;
+                        currentUserPhoto = base64Image;
                         const userRef = ref(database, 'users/' + currentUser.uid);
                         await update(userRef, { photoURL: base64Image });
                         console.log('✅ Foto profil berhasil diperbarui');
@@ -787,10 +774,12 @@
                 if (snapshot.exists()) {
                     const userData = snapshot.val();
                     currentUserName = userData.fullname || userData.email.split('@')[0];
+                    currentUserPhoto = userData.photoURL || 'https://via.placeholder.com/52';
                     document.getElementById('currentUserName').textContent = currentUserName;
                     
                     if (userData.photoURL) {
                         document.getElementById('myAvatar').src = userData.photoURL;
+                        document.getElementById('noteMyAvatar').src = userData.photoURL;
                     }
                     
                     console.log('✅ Current user loaded:', currentUserName);
@@ -915,7 +904,6 @@
             img.src = photoURL || 'https://via.placeholder.com/40';
             img.style.cssText = 'width: 100%; height: 100%; border-radius: 50%; object-fit: cover;';
             chatUserAvatar.appendChild(img);
-            // Status will be updated by listenUserPresence
             const statusEl = document.getElementById('userStatus');
             statusEl.textContent = '...';
             statusEl.className = 'user-status';
@@ -965,17 +953,14 @@
                     messagesArea.innerHTML = '<p class="no-messages" style="text-align:center; color:#999; padding:2rem;">Belum ada pesan. Mulai percakapan!</p>';
                 } else {
                     messages.forEach(msg => {
-                        // Skip deleted messages untuk sender lain
                         if (msg.isDeleted && msg.senderId !== currentUser.uid) {
                             return;
                         }
 
-                        // Skip jika sudah dihapus untuk current user
                         if (msg.deletedFor && msg.deletedFor[currentUser.uid]) {
                             return;
                         }
 
-                        // isUnsent: penerima tidak melihat sama sekali
                         if (msg.isUnsent && msg.senderId !== currentUser.uid) {
                             return;
                         }
@@ -990,13 +975,10 @@
                         let contentHtml = '';
                         
                         if (msg.isDeleted) {
-                            // Deleted message indicator
                             contentHtml = '<p style="font-style: italic; color: #999;">🗑️ Pesan telah dihapus</p>';
                         } else if (msg.isUnsent) {
-                            // Unsent indicator — hanya terlihat oleh pengirim
                             contentHtml = '<p style="font-style: italic; color: #aaa; font-size: 0.88rem;">↩️ Kamu membatalkan pengiriman pesan ini</p>';
                         } else if (msg.mediaUrl && msg.mediaType) {
-                            // Media message
                             if (msg.mediaType === 'image') {
                                 contentHtml = `
                                     <div class="media-message" onclick="openMediaModal('${msg.mediaUrl}', 'image')">
@@ -1014,7 +996,6 @@
                                 contentHtml += `<p style="margin-top: 8px;">${escapeHtml(msg.text)}</p>`;
                             }
                         } else {
-                            // Text message
                             contentHtml = `<p>${escapeHtml(msg.text)}</p>`;
                         }
                         
@@ -1226,104 +1207,6 @@
             });
         };
 
-        // Open new chat modal
-        window.openNewChat = function() {
-            document.getElementById('newChatModal').classList.add('show');
-            populateModalUsers();
-        };
-
-        // Close new chat modal
-        window.closeNewChat = function() {
-            document.getElementById('newChatModal').classList.remove('show');
-            document.getElementById('modalSearchUsers').value = '';
-        };
-
-        // Populate modal users
-        function populateModalUsers() {
-            const modalUsersList = document.getElementById('modalUsersList');
-            modalUsersList.innerHTML = '';
-
-            if (allUsers.length === 0) {
-                modalUsersList.innerHTML = '<p class="no-users">Belum ada pengguna lain</p>';
-                return;
-            }
-
-            allUsers.forEach(user => {
-                const userElement = document.createElement('div');
-                userElement.className = 'modal-user-item';
-                userElement.setAttribute('data-user-id', user.uid);
-                userElement.onclick = () => {
-                    selectUser(user.uid, user.name, user.photoURL);
-                    closeNewChat();
-                };
-                
-                const unreadCount = unreadCounts[user.uid] || 0;
-                const badgeHtml = unreadCount > 0 
-                    ? `<span class="unread-badge" style="display: block;">${unreadCount > 99 ? '99+' : unreadCount}</span>` 
-                    : `<span class="unread-badge" style="display: none;"></span>`;
-                
-                userElement.innerHTML = `
-                    <div class="avatar-wrapper">
-                        <img src="${user.photoURL}" class="user-item-avatar" alt="${escapeHtml(user.name)}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover;">
-                        <span class="presence-dot dot-offline" title="Offline"></span>
-                    </div>
-                    <div class="user-item-info">
-                        <h4>${escapeHtml(user.name)}</h4>
-                        <p class="user-presence-label presence-inactive"></p>
-                    </div>
-                    ${badgeHtml}
-                `;
-                modalUsersList.appendChild(userElement);
-                listenUserPresence(user.uid);
-            });
-        }
-
-        // Search modal users
-        window.searchModalUsers = function() {
-            const searchTerm = document.getElementById('modalSearchUsers').value.toLowerCase();
-            const modalUsersList = document.getElementById('modalUsersList');
-            modalUsersList.innerHTML = '';
-
-            const filtered = allUsers.filter(user =>
-                user.name.toLowerCase().includes(searchTerm) ||
-                user.email.toLowerCase().includes(searchTerm)
-            );
-
-            if (filtered.length === 0) {
-                modalUsersList.innerHTML = '<p class="no-users">Tidak ada pengguna yang cocok</p>';
-                return;
-            }
-
-            filtered.forEach(user => {
-                const userElement = document.createElement('div');
-                userElement.className = 'modal-user-item';
-                userElement.setAttribute('data-user-id', user.uid);
-                userElement.onclick = () => {
-                    selectUser(user.uid, user.name, user.photoURL);
-                    closeNewChat();
-                };
-                
-                const unreadCount = unreadCounts[user.uid] || 0;
-                const badgeHtml = unreadCount > 0 
-                    ? `<span class="unread-badge" style="display: block;">${unreadCount > 99 ? '99+' : unreadCount}</span>` 
-                    : `<span class="unread-badge" style="display: none;"></span>`;
-                
-                userElement.innerHTML = `
-                    <div class="avatar-wrapper">
-                        <img src="${user.photoURL}" class="user-item-avatar" alt="${escapeHtml(user.name)}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover;">
-                        <span class="presence-dot dot-offline" title="Offline"></span>
-                    </div>
-                    <div class="user-item-info">
-                        <h4>${escapeHtml(user.name)}</h4>
-                        <p class="user-presence-label presence-inactive"></p>
-                    </div>
-                    ${badgeHtml}
-                `;
-                modalUsersList.appendChild(userElement);
-                listenUserPresence(user.uid);
-            });
-        };
-
         // Logout
         window.logoutChat = function() {
             if (confirm('Apakah Anda yakin ingin logout?')) {
@@ -1407,15 +1290,22 @@
             const hours = Math.floor(diff / 3600000);
             const days = Math.floor(diff / 86400000);
             if (minutes < 1) return 'Baru saja';
-            if (minutes < 60) return `${minutes} menit lalu`;
-            if (hours < 24) return `${hours} jam lalu`;
-            return `${days} hari lalu`;
+            if (minutes < 60) return `${minutes}m`;
+            if (hours < 24) return `${hours}h`;
+            return `${days}d`;
         }
 
         // Open Note Edit Modal
         window.openNoteModal = function() {
             if (!currentUser) return;
-            document.getElementById('noteModal').style.display = 'flex';
+            
+            const noteModal = document.getElementById('noteModal');
+            if (!noteModal) {
+                console.error('❌ Note modal not found');
+                return;
+            }
+            
+            noteModal.style.display = 'flex';
 
             // Load existing note
             get(ref(database, `notes/${currentUser.uid}`)).then(snap => {
@@ -1426,7 +1316,7 @@
                     document.getElementById('noteYoutubeInput').value = data.youtubeUrl || '';
                     if (data.youtubeUrl) previewYoutube(data.youtubeUrl);
                 }
-            });
+            }).catch(err => console.error('Error loading note:', err));
 
             document.getElementById('noteTextInput').oninput = function() {
                 document.getElementById('noteCharCount').textContent = `${this.value.length}/60`;
@@ -1434,9 +1324,18 @@
         };
 
         window.closeNoteModal = function() {
-            document.getElementById('noteModal').style.display = 'none';
-            document.getElementById('noteYoutubePreview').style.display = 'none';
-            document.getElementById('noteYoutubeIframe').src = '';
+            const noteModal = document.getElementById('noteModal');
+            if (noteModal) {
+                noteModal.style.display = 'none';
+            }
+            const preview = document.getElementById('noteYoutubePreview');
+            if (preview) {
+                preview.style.display = 'none';
+            }
+            const iframe = document.getElementById('noteYoutubeIframe');
+            if (iframe) {
+                iframe.src = '';
+            }
         };
 
         window.previewYoutube = function(urlOverride) {
@@ -1447,7 +1346,7 @@
                 return;
             }
             document.getElementById('noteYoutubePreview').style.display = 'block';
-            document.getElementById('noteYoutubeTitle').textContent = 'Link valid ✓ Video ID: ' + videoId;
+            document.getElementById('noteYoutubeTitle').textContent = 'Link valid ✓';
         };
 
         window.saveMyNote = async function() {
@@ -1468,7 +1367,7 @@
                 youtubeId: videoId || null,
                 userId: currentUser.uid,
                 userName: currentUserName,
-                userPhoto: document.getElementById('myAvatar').src,
+                userPhoto: currentUserPhoto,
                 updatedAt: Date.now(),
                 likes: {},
                 replies: {}
@@ -1478,9 +1377,11 @@
                 await set(ref(database, `notes/${currentUser.uid}`), noteData);
                 closeNoteModal();
                 renderMyNote(noteData);
+                loadNotesPanel();
                 alert('✅ Catatan berhasil disimpan!');
             } catch (err) {
                 alert('❌ Gagal menyimpan: ' + err.message);
+                console.error('Error saving note:', err);
             }
         };
 
@@ -1491,14 +1392,19 @@
                 await set(ref(database, `notes/${currentUser.uid}`), null);
                 closeNoteModal();
                 renderMyNote(null);
+                loadNotesPanel();
             } catch (err) {
                 alert('❌ Gagal hapus: ' + err.message);
+                console.error('Error deleting note:', err);
             }
         };
 
         function renderMyNote(data) {
             const avatar = document.getElementById('myAvatar');
-            document.getElementById('noteMyAvatar').src = avatar.src;
+            const noteAvatar = document.getElementById('noteMyAvatar');
+            if (noteAvatar && avatar) {
+                noteAvatar.src = avatar.src;
+            }
             document.getElementById('noteMyName').textContent = 'Kamu';
 
             const bubble = document.getElementById('myNoteBubble');
@@ -1526,20 +1432,23 @@
             // Load own note
             get(ref(database, `notes/${currentUser.uid}`)).then(snap => {
                 renderMyNote(snap.exists() ? snap.val() : null);
-            });
+            }).catch(err => console.error('Error loading my note:', err));
 
             // Listen to all notes
             if (notesUnsubscribe) notesUnsubscribe();
             const notesRef = ref(database, 'notes');
             notesUnsubscribe = onValue(notesRef, (snap) => {
                 const friendsList = document.getElementById('friendsNotesList');
+                if (!friendsList) return;
+                
                 friendsList.innerHTML = '';
 
-                // Clear friend story items from scroll row (keep only first child = my note)
                 const scrollRow = document.getElementById('notesScrollRow');
                 const myItem = document.getElementById('myNoteStoryItem');
-                scrollRow.innerHTML = '';
-                scrollRow.appendChild(myItem);
+                if (scrollRow && myItem) {
+                    scrollRow.innerHTML = '';
+                    scrollRow.appendChild(myItem);
+                }
 
                 if (!snap.exists()) {
                     friendsList.innerHTML = '<p class="notes-loading">Belum ada catatan teman</p>';
@@ -1575,7 +1484,9 @@
                         </div>
                         <div class="note-story-name">${escapeHtml((note.userName || 'User').split(' ')[0])}</div>
                     `;
-                    scrollRow.appendChild(storyItem);
+                    if (scrollRow) {
+                        scrollRow.appendChild(storyItem);
+                    }
 
                     // Card in list below
                     const card = document.createElement('div');
@@ -1612,18 +1523,24 @@
                 if (count === 0) {
                     friendsList.innerHTML = '<p class="notes-loading">Belum ada catatan teman</p>';
                 }
+            }, (error) => {
+                console.error('Error loading notes:', error);
             });
         }
 
         window.quickLikeNote = async function(userId, event) {
             event.stopPropagation();
             if (!currentUser) return;
-            const likeRef = ref(database, `notes/${userId}/likes/${currentUser.uid}`);
-            const snap = await get(likeRef);
-            if (snap.exists()) {
-                await set(likeRef, null);
-            } else {
-                await set(likeRef, true);
+            try {
+                const likeRef = ref(database, `notes/${userId}/likes/${currentUser.uid}`);
+                const snap = await get(likeRef);
+                if (snap.exists()) {
+                    await set(likeRef, null);
+                } else {
+                    await set(likeRef, true);
+                }
+            } catch (err) {
+                console.error('Error toggling like:', err);
             }
         };
 
@@ -1643,7 +1560,6 @@
 
                 const ytContainer = document.getElementById('viewerYtContainer');
                 if (note.youtubeId) {
-                    // Load iframe with autoplay=0 initially — audio only (video hidden)
                     document.getElementById('viewerYtIframe').src = `https://www.youtube.com/embed/${note.youtubeId}?autoplay=0&controls=0&enablejsapi=1`;
                     document.getElementById('audioSongName').textContent = note.text || 'Lagu dari ' + (note.userName || 'teman');
                     document.getElementById('audioPlayBtn').textContent = '▶';
@@ -1664,7 +1580,7 @@
 
                 renderReplies(note.replies || {});
                 document.getElementById('noteViewerModal').style.display = 'flex';
-            });
+            }).catch(err => console.error('Error opening note viewer:', err));
         };
 
         window.toggleAudio = function() {
@@ -1673,7 +1589,6 @@
             const icon = document.getElementById('audioMusicIcon');
 
             if (!audioPlaying) {
-                // Reload iframe with autoplay=1
                 const currentSrc = iframe.src;
                 const videoId = currentSrc.match(/embed\/([a-zA-Z0-9_-]{11})/);
                 if (videoId) {
@@ -1696,6 +1611,8 @@
 
         function renderReplies(replies) {
             const container = document.getElementById('noteReplies');
+            if (!container) return;
+            
             container.innerHTML = '';
             const sorted = Object.values(replies).sort((a,b) => a.timestamp - b.timestamp);
             sorted.forEach(reply => {
@@ -1714,23 +1631,32 @@
         }
 
         window.closeNoteViewer = function() {
-            document.getElementById('noteViewerModal').style.display = 'none';
-            document.getElementById('viewerYtIframe').src = '';
+            const modal = document.getElementById('noteViewerModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+            const iframe = document.getElementById('viewerYtIframe');
+            if (iframe) {
+                iframe.src = '';
+            }
             viewingNoteUserId = null;
             audioPlaying = false;
         };
 
         window.toggleLikeNote = async function() {
             if (!currentUser || !viewingNoteUserId) return;
-            const likeRef = ref(database, `notes/${viewingNoteUserId}/likes/${currentUser.uid}`);
-            const snap = await get(likeRef);
-            if (snap.exists()) {
-                await set(likeRef, null);
-            } else {
-                await set(likeRef, true);
+            try {
+                const likeRef = ref(database, `notes/${viewingNoteUserId}/likes/${currentUser.uid}`);
+                const snap = await get(likeRef);
+                if (snap.exists()) {
+                    await set(likeRef, null);
+                } else {
+                    await set(likeRef, true);
+                }
+                openNoteViewer(viewingNoteUserId);
+            } catch (err) {
+                console.error('Error toggling like:', err);
             }
-            // Refresh viewer
-            openNoteViewer(viewingNoteUserId);
         };
 
         window.focusReply = function() {
@@ -1750,7 +1676,7 @@
             const replyData = {
                 userId: currentUser.uid,
                 userName: currentUserName,
-                userPhoto: document.getElementById('myAvatar').src,
+                userPhoto: currentUserPhoto,
                 text: text,
                 timestamp: Date.now()
             };
@@ -1758,12 +1684,12 @@
             try {
                 await push(ref(database, `notes/${viewingNoteUserId}/replies`), replyData);
                 input.value = '';
-                // Refresh replies
                 get(ref(database, `notes/${viewingNoteUserId}/replies`)).then(snap => {
                     renderReplies(snap.exists() ? snap.val() : {});
                 });
             } catch (err) {
                 alert('❌ Gagal kirim balasan: ' + err.message);
+                console.error('Error sending reply:', err);
             }
         };
 
