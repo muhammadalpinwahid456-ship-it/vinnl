@@ -195,9 +195,11 @@
         let currentMediaUrl = null;
         let currentMediaType = null;
 
-        // ===== CLOUDINARY CONFIG =====
+        // ===== CLOUDINARY CONFIG (DIPERBAIKI) =====
         const CLOUDINARY_CLOUD_NAME = "djc9oemca";
-        const CLOUDINARY_UPLOAD_PRESET = "chat_upload_preset";
+        // ⚠️ PENTING: Gunakan "unsigned" upload preset (tanpa authentikasi server-side)
+        // Buat di Cloudinary Dashboard: Settings → Upload → Add upload preset → Unsigned
+        const CLOUDINARY_UPLOAD_PRESET = "chat_unsigned"; // GANTI SESUAI UPLOAD PRESET ANDA
 
         // ===== HELPER FUNCTIONS =====
         function generateChatId(userId1, userId2) {
@@ -348,13 +350,12 @@
             document.getElementById('mediaInput').value = '';
         };
 
-        // ===== UPLOAD TO CLOUDINARY =====
+        // ===== UPLOAD TO CLOUDINARY (DIPERBAIKI) =====
         async function uploadToCloudinary(file) {
             return new Promise((resolve, reject) => {
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-                formData.append('cloud_name', CLOUDINARY_CLOUD_NAME);
 
                 const xhr = new XMLHttpRequest();
 
@@ -368,26 +369,40 @@
 
                 xhr.addEventListener('load', () => {
                     if (xhr.status === 200) {
-                        const response = JSON.parse(xhr.responseText);
-                        resolve({
-                            url: response.secure_url,
-                            publicId: response.public_id,
-                            type: file.type.startsWith('video/') ? 'video' : 'image'
-                        });
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            resolve({
+                                url: response.secure_url,
+                                publicId: response.public_id,
+                                type: file.type.startsWith('video/') ? 'video' : 'image'
+                            });
+                            console.log('✅ Upload ke Cloudinary berhasil');
+                        } catch (e) {
+                            reject(new Error('Invalid response from server'));
+                        }
                     } else {
-                        reject(new Error(`Upload failed with status ${xhr.status}`));
+                        try {
+                            const errorResponse = JSON.parse(xhr.responseText);
+                            reject(new Error(`Upload failed: ${errorResponse.error?.message || xhr.statusText}`));
+                        } catch {
+                            reject(new Error(`Upload failed with status ${xhr.status}`));
+                        }
                     }
                 });
 
                 xhr.addEventListener('error', () => {
-                    reject(new Error('Upload error'));
+                    reject(new Error('Network error during upload'));
                 });
 
                 xhr.addEventListener('abort', () => {
                     reject(new Error('Upload aborted'));
                 });
 
+                // ✅ PERBAIKAN: URL yang benar untuk unsigned upload
                 const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`;
+                console.log('📤 Uploading to:', uploadUrl);
+                console.log('📋 Upload preset:', CLOUDINARY_UPLOAD_PRESET);
+                
                 xhr.open('POST', uploadUrl);
                 xhr.send(formData);
             });
@@ -671,11 +686,18 @@
                 if (selectedMediaFile) {
                     document.getElementById('uploadProgress').style.display = 'flex';
                     
-                    const uploadResult = await uploadToCloudinary(selectedMediaFile);
-                    messageData.mediaUrl = uploadResult.url;
-                    messageData.mediaType = uploadResult.type;
-                    
-                    console.log('✅ Media uploaded:', uploadResult.type);
+                    try {
+                        const uploadResult = await uploadToCloudinary(selectedMediaFile);
+                        messageData.mediaUrl = uploadResult.url;
+                        messageData.mediaType = uploadResult.type;
+                        
+                        console.log('✅ Media uploaded:', uploadResult.type);
+                    } catch (uploadError) {
+                        console.error('❌ Upload error:', uploadError);
+                        alert('❌ Error upload media: ' + uploadError.message);
+                        document.getElementById('uploadProgress').style.display = 'none';
+                        return;
+                    }
                     
                     document.getElementById('uploadProgress').style.display = 'none';
                 }
