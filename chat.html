@@ -33,8 +33,8 @@
 
         <div class="chat-wrapper">
             <!-- SIDEBAR -->
-            <div class="chat-sidebar">
-                <div class="sidebar-header">
+            <div class="chat-sidebar" style="display:flex; flex-direction:column; height:100%; overflow:hidden;">
+                <div class="sidebar-header" style="flex-shrink:0;">
                     <div class="sidebar-tabs">
                         <button class="sidebar-tab active" id="tabPesan" onclick="switchSidebarTab('pesan')">💬 Pesan</button>
                         <button class="sidebar-tab" id="tabNotes" onclick="switchSidebarTab('notes')">🎵 Notes</button>
@@ -46,8 +46,8 @@
                 </div>
 
                 <!-- PESAN PANEL -->
-                <div id="panelPesan">
-                    <div class="search-box">
+                <div id="panelPesan" style="display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden;">
+                    <div class="search-box" style="flex-shrink:0;">
                         <input 
                             type="text" 
                             id="searchUsers" 
@@ -56,7 +56,7 @@
                         >
                     </div>
 
-                    <div class="users-list" id="usersList">
+                    <div class="users-list" id="usersList" style="flex:1; overflow-y:auto; min-height:0;">
                         <!-- User list akan di-populate di sini -->
                     </div>
                 </div>
@@ -1259,6 +1259,10 @@
                 tabPesan.classList.add('active');
                 tabNotes.classList.remove('active');
                 panelPesan.style.display = 'flex';
+                panelPesan.style.flexDirection = 'column';
+                panelPesan.style.flex = '1';
+                panelPesan.style.minHeight = '0';
+                panelPesan.style.overflow = 'hidden';
                 panelNotes.style.display = 'none';
             } else {
                 tabPesan.classList.remove('active');
