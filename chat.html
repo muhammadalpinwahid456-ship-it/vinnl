@@ -173,7 +173,9 @@
             get,
             set,
             update,
-            remove
+            remove,
+            onDisconnect,
+            serverTimestamp
         } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         const firebaseConfig = {
@@ -203,6 +205,96 @@
         let currentMediaType = null;
         let selectedMessageId = null;
         let selectedMessageElement = null;
+
+        // ===== PRESENCE SYSTEM =====
+        let presenceListeners = {}; // track active listeners per userId
+
+        function setupMyPresence(uid) {
+            const presenceRef = ref(database, `presence/${uid}`);
+            const connectedRef = ref(database, '.info/connected');
+
+            onValue(connectedRef, (snap) => {
+                if (snap.val() === true) {
+                    // Set online
+                    set(presenceRef, {
+                        online: true,
+                        lastSeen: serverTimestamp()
+                    });
+
+                    // Set offline + lastSeen when disconnected
+                    onDisconnect(presenceRef).set({
+                        online: false,
+                        lastSeen: serverTimestamp()
+                    });
+                }
+            });
+        }
+
+        function formatLastSeen(timestamp) {
+            if (!timestamp) return 'Terakhir dilihat baru saja';
+            const now = Date.now();
+            const diff = now - timestamp;
+            const minutes = Math.floor(diff / 60000);
+            const hours = Math.floor(diff / 3600000);
+            const days = Math.floor(diff / 86400000);
+
+            if (diff < 60000) return 'Terakhir dilihat baru saja';
+            if (minutes < 60) return `Terakhir dilihat ${minutes} menit lalu`;
+            if (hours < 24) return `Terakhir dilihat ${hours} jam lalu`;
+            if (days === 1) return 'Terakhir dilihat kemarin';
+            if (days < 7) return `Terakhir dilihat ${days} hari lalu`;
+
+            const date = new Date(timestamp);
+            return `Terakhir dilihat ${date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}`;
+        }
+
+        function listenUserPresence(userId) {
+            // Unsubscribe existing listener for this user if any
+            if (presenceListeners[userId]) {
+                presenceListeners[userId]();
+            }
+
+            const presenceRef = ref(database, `presence/${userId}`);
+            const unsubscribe = onValue(presenceRef, (snap) => {
+                const data = snap.val();
+                const isOnline = data && data.online === true;
+                const lastSeen = data && data.lastSeen;
+
+                // Update chat window header status (if this user is selected)
+                if (selectedUserId === userId) {
+                    const statusEl = document.getElementById('userStatus');
+                    if (statusEl) {
+                        if (isOnline) {
+                            statusEl.textContent = 'Aktif sekarang';
+                            statusEl.className = 'user-status status-online';
+                        } else {
+                            statusEl.textContent = formatLastSeen(lastSeen);
+                            statusEl.className = 'user-status status-offline';
+                        }
+                    }
+                }
+
+                // Update sidebar user item indicator
+                updateSidebarPresence(userId, isOnline);
+            });
+
+            presenceListeners[userId] = unsubscribe;
+        }
+
+        function updateSidebarPresence(userId, isOnline) {
+            // Update in main usersList and modal usersList
+            const selectors = [
+                `#usersList [data-user-id="${userId}"] .presence-dot`,
+                `#modalUsersList [data-user-id="${userId}"] .presence-dot`
+            ];
+            selectors.forEach(selector => {
+                const dot = document.querySelector(selector);
+                if (dot) {
+                    dot.className = `presence-dot ${isOnline ? 'dot-online' : 'dot-offline'}`;
+                    dot.title = isOnline ? 'Aktif sekarang' : 'Offline';
+                }
+            });
+        }
 
         // ===== CLOUDINARY CONFIG =====
         const CLOUDINARY_CLOUD_NAME = "djc9oemca";
@@ -546,6 +638,7 @@
                 console.log('✅ User logged in:', user.email);
                 document.getElementById('authCheck').style.display = 'none';
                 document.getElementById('chatContainer').style.display = 'flex';
+                setupMyPresence(user.uid);
                 loadCurrentUser();
                 loadAllUsers();
             } else {
@@ -665,7 +758,10 @@
                     : `<span class="unread-badge" style="display: none;"></span>`;
                 
                 userElement.innerHTML = `
-                    <img src="${user.photoURL}" class="user-item-avatar" alt="${escapeHtml(user.name)}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover;">
+                    <div class="avatar-wrapper">
+                        <img src="${user.photoURL}" class="user-item-avatar" alt="${escapeHtml(user.name)}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover;">
+                        <span class="presence-dot dot-offline" title="Offline"></span>
+                    </div>
                     <div class="user-item-info">
                         <h4>${escapeHtml(user.name)}</h4>
                         <p class="user-email">${escapeHtml(user.email)}</p>
@@ -673,6 +769,7 @@
                     ${badgeHtml}
                 `;
                 usersList.appendChild(userElement);
+                listenUserPresence(user.uid);
             });
         }
 
@@ -686,7 +783,11 @@
             img.src = photoURL || 'https://via.placeholder.com/40';
             img.style.cssText = 'width: 100%; height: 100%; border-radius: 50%; object-fit: cover;';
             chatUserAvatar.appendChild(img);
-            document.getElementById('userStatus').textContent = 'online';
+            // Status will be updated by listenUserPresence
+            const statusEl = document.getElementById('userStatus');
+            statusEl.textContent = '...';
+            statusEl.className = 'user-status';
+            listenUserPresence(userId);
             document.getElementById('welcomeMessage').style.display = 'none';
             document.getElementById('chatWindow').style.display = 'flex';
             document.getElementById('messagesArea').innerHTML = '';
@@ -978,7 +1079,10 @@
                     : `<span class="unread-badge" style="display: none;"></span>`;
                 
                 userElement.innerHTML = `
-                    <img src="${user.photoURL}" class="user-item-avatar" alt="${escapeHtml(user.name)}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover;">
+                    <div class="avatar-wrapper">
+                        <img src="${user.photoURL}" class="user-item-avatar" alt="${escapeHtml(user.name)}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover;">
+                        <span class="presence-dot dot-offline" title="Offline"></span>
+                    </div>
                     <div class="user-item-info">
                         <h4>${escapeHtml(user.name)}</h4>
                         <p class="user-email">${escapeHtml(user.email)}</p>
@@ -1026,7 +1130,10 @@
                     : `<span class="unread-badge" style="display: none;"></span>`;
                 
                 userElement.innerHTML = `
-                    <img src="${user.photoURL}" class="user-item-avatar" alt="${escapeHtml(user.name)}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover;">
+                    <div class="avatar-wrapper">
+                        <img src="${user.photoURL}" class="user-item-avatar" alt="${escapeHtml(user.name)}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover;">
+                        <span class="presence-dot dot-offline" title="Offline"></span>
+                    </div>
                     <div class="user-item-info">
                         <h4>${escapeHtml(user.name)}</h4>
                         <p>${escapeHtml(user.email)}</p>
@@ -1068,7 +1175,10 @@
                     : `<span class="unread-badge" style="display: none;"></span>`;
                 
                 userElement.innerHTML = `
-                    <img src="${user.photoURL}" class="user-item-avatar" alt="${escapeHtml(user.name)}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover;">
+                    <div class="avatar-wrapper">
+                        <img src="${user.photoURL}" class="user-item-avatar" alt="${escapeHtml(user.name)}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover;">
+                        <span class="presence-dot dot-offline" title="Offline"></span>
+                    </div>
                     <div class="user-item-info">
                         <h4>${escapeHtml(user.name)}</h4>
                         <p>${escapeHtml(user.email)}</p>
