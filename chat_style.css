@@ -1042,7 +1042,7 @@ body {
 
 /* ===== PRESENCE / ONLINE STATUS ===== */
 
-/* Avatar wrapper untuk presence dot */
+/* Avatar wrapper — relatif agar dot bisa diposisikan */
 .avatar-wrapper {
     position: relative;
     flex-shrink: 0;
@@ -1050,61 +1050,94 @@ body {
     height: 44px;
 }
 
-/* Dot indicator di pojok kanan bawah avatar */
+/* Dot hijau/abu di pojok kanan bawah foto profil, persis Instagram */
 .presence-dot {
     position: absolute;
-    bottom: 1px;
-    right: 1px;
-    width: 12px;
-    height: 12px;
+    bottom: 0px;
+    right: 0px;
+    width: 13px;
+    height: 13px;
     border-radius: 50%;
-    border: 2px solid #161b22;
-    transition: background-color 0.3s ease;
+    border: 2.5px solid #161b22; /* warna background sidebar */
+    transition: background-color 0.4s ease, box-shadow 0.4s ease;
+    z-index: 2;
 }
 
+/* ONLINE — hijau berdenyut */
 .presence-dot.dot-online {
-    background: #3fb950;
-    box-shadow: 0 0 6px rgba(63, 185, 80, 0.7);
+    background: #3ecf5e;
+    box-shadow: 0 0 0 0 rgba(62, 207, 94, 0.6);
     animation: presencePulse 2.5s ease-in-out infinite;
 }
 
+/* OFFLINE — abu-abu diam */
 .presence-dot.dot-offline {
     background: #484f58;
+    box-shadow: none;
+    animation: none;
 }
 
 @keyframes presencePulse {
-    0%, 100% { box-shadow: 0 0 4px rgba(63, 185, 80, 0.5); }
-    50% { box-shadow: 0 0 10px rgba(63, 185, 80, 0.9); }
+    0%   { box-shadow: 0 0 0 0   rgba(62, 207, 94, 0.6); }
+    50%  { box-shadow: 0 0 0 5px rgba(62, 207, 94, 0);   }
+    100% { box-shadow: 0 0 0 0   rgba(62, 207, 94, 0);   }
 }
 
-/* Status text di chat window header */
-.user-status.status-online {
-    color: #3fb950;
-    font-size: 0.8rem;
+/* Teks "Sedang aktif" di bawah nama di sidebar */
+.user-presence-label {
+    font-size: 0.78rem;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 170px;
+    transition: color 0.3s ease;
+}
+
+.user-presence-label.presence-active {
+    color: #3ecf5e;
     font-weight: 500;
 }
 
+.user-presence-label.presence-inactive {
+    color: #8b949e;
+    font-weight: 400;
+}
+
+/* Status di chat-window header */
+.user-status {
+    font-size: 0.8rem;
+    font-weight: 400;
+    transition: color 0.3s ease;
+}
+
+.user-status.status-online {
+    color: #3ecf5e;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* Dot kecil di sebelah teks "Sedang aktif" di chat header */
 .user-status.status-online::before {
-    content: '● ';
-    font-size: 0.6rem;
-    vertical-align: middle;
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #3ecf5e;
+    box-shadow: 0 0 6px rgba(62, 207, 94, 0.8);
+    flex-shrink: 0;
+    animation: presencePulse 2.5s ease-in-out infinite;
 }
 
 .user-status.status-offline {
     color: #8b949e;
-    font-size: 0.78rem;
-    font-weight: 400;
+    font-size: 0.77rem;
 }
 
-/* Sidebar user item: tampilkan status online di bawah nama */
-.user-item-info .user-presence-text {
-    font-size: 0.75rem;
-    color: #3fb950;
-    margin: 0;
-    font-weight: 500;
-}
-
-/* Dot di modal */
-.modal-user-item .avatar-wrapper .presence-dot {
+/* Dot di modal — border menyesuaikan background modal */
+.modal-user-item .presence-dot {
     border-color: #161b22;
 }

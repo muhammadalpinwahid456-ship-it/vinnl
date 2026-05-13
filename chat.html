@@ -231,21 +231,29 @@
         }
 
         function formatLastSeen(timestamp) {
-            if (!timestamp) return 'Terakhir dilihat baru saja';
+            if (!timestamp) return 'Terakhir aktif baru saja';
             const now = Date.now();
             const diff = now - timestamp;
             const minutes = Math.floor(diff / 60000);
             const hours = Math.floor(diff / 3600000);
-            const days = Math.floor(diff / 86400000);
-
-            if (diff < 60000) return 'Terakhir dilihat baru saja';
-            if (minutes < 60) return `Terakhir dilihat ${minutes} menit lalu`;
-            if (hours < 24) return `Terakhir dilihat ${hours} jam lalu`;
-            if (days === 1) return 'Terakhir dilihat kemarin';
-            if (days < 7) return `Terakhir dilihat ${days} hari lalu`;
 
             const date = new Date(timestamp);
-            return `Terakhir dilihat ${date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}`;
+            const days = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+            const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+            const dayName = days[date.getDay()];
+            const timeStr = String(date.getHours()).padStart(2,'0') + '.' + String(date.getMinutes()).padStart(2,'0');
+
+            const nowDate = new Date();
+            const diffDays = Math.floor((nowDate.setHours(0,0,0,0) - new Date(timestamp).setHours(0,0,0,0)) / 86400000);
+
+            if (diff < 60000) return 'Terakhir aktif baru saja';
+            if (diff < 3600000) return `Terakhir aktif ${minutes} menit lalu`;
+            if (diffDays === 0) return `Terakhir aktif hari ini · ${timeStr}`;
+            if (diffDays === 1) return `Terakhir aktif kemarin · ${timeStr}`;
+            if (diffDays < 7) return `Terakhir aktif ${dayName} · ${timeStr}`;
+            // Lebih dari seminggu: tampilkan tanggal lengkap
+            const d = new Date(timestamp);
+            return `Terakhir aktif ${d.getDate()} ${months[d.getMonth()]} · ${timeStr}`;
         }
 
         function listenUserPresence(userId) {
@@ -265,7 +273,7 @@
                     const statusEl = document.getElementById('userStatus');
                     if (statusEl) {
                         if (isOnline) {
-                            statusEl.textContent = 'Aktif sekarang';
+                            statusEl.textContent = 'Sedang aktif';
                             statusEl.className = 'user-status status-online';
                         } else {
                             statusEl.textContent = formatLastSeen(lastSeen);
@@ -274,8 +282,20 @@
                     }
                 }
 
-                // Update sidebar user item indicator
+                // Update sidebar dot indicator
                 updateSidebarPresence(userId, isOnline);
+
+                // Update sidebar status text below username
+                const statusTextEls = document.querySelectorAll(`[data-user-id="${userId}"] .user-presence-label`);
+                statusTextEls.forEach(el => {
+                    if (isOnline) {
+                        el.textContent = 'Sedang aktif';
+                        el.className = 'user-presence-label presence-active';
+                    } else {
+                        el.textContent = lastSeen ? formatLastSeen(lastSeen) : '';
+                        el.className = 'user-presence-label presence-inactive';
+                    }
+                });
             });
 
             presenceListeners[userId] = unsubscribe;
@@ -764,7 +784,7 @@
                     </div>
                     <div class="user-item-info">
                         <h4>${escapeHtml(user.name)}</h4>
-                        <p class="user-email">${escapeHtml(user.email)}</p>
+                        <p class="user-presence-label presence-inactive"></p>
                     </div>
                     ${badgeHtml}
                 `;
@@ -1085,11 +1105,12 @@
                     </div>
                     <div class="user-item-info">
                         <h4>${escapeHtml(user.name)}</h4>
-                        <p class="user-email">${escapeHtml(user.email)}</p>
+                        <p class="user-presence-label presence-inactive"></p>
                     </div>
                     ${badgeHtml}
                 `;
                 usersList.appendChild(userElement);
+                listenUserPresence(user.uid);
             });
         };
 
@@ -1136,11 +1157,12 @@
                     </div>
                     <div class="user-item-info">
                         <h4>${escapeHtml(user.name)}</h4>
-                        <p>${escapeHtml(user.email)}</p>
+                        <p class="user-presence-label presence-inactive"></p>
                     </div>
                     ${badgeHtml}
                 `;
                 modalUsersList.appendChild(userElement);
+                listenUserPresence(user.uid);
             });
         }
 
@@ -1181,11 +1203,12 @@
                     </div>
                     <div class="user-item-info">
                         <h4>${escapeHtml(user.name)}</h4>
-                        <p>${escapeHtml(user.email)}</p>
+                        <p class="user-presence-label presence-inactive"></p>
                     </div>
                     ${badgeHtml}
                 `;
                 modalUsersList.appendChild(userElement);
+                listenUserPresence(user.uid);
             });
         };
 
