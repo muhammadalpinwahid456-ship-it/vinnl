@@ -120,23 +120,24 @@ body {
     margin: 0;
 }
 
-.btn-new-chat {
+.btn-back-reels {
     background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
     color: white;
     border: none;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
+    padding: 7px 14px;
+    border-radius: 20px;
     cursor: pointer;
-    font-size: 1.2rem;
+    font-size: 0.85rem;
+    font-weight: 600;
     transition: all 0.2s ease;
     display: flex;
     align-items: center;
-    justify-content: center;
+    gap: 5px;
+    letter-spacing: 0.2px;
 }
 
-.btn-new-chat:hover {
-    transform: scale(1.1);
+.btn-back-reels:hover {
+    transform: translateX(-2px);
     box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
 
