@@ -111,6 +111,7 @@ body {
     justify-content: space-between;
     align-items: center;
     border-bottom: 1px solid #2d333b;
+    flex-shrink: 0;
 }
 
 .sidebar-header h3 {
@@ -143,6 +144,7 @@ body {
 .search-box {
     padding: 12px;
     border-bottom: 1px solid #2d333b;
+    flex-shrink: 0;
 }
 
 .search-box input {
@@ -178,9 +180,10 @@ body {
 
 .users-list {
     flex: 1;
-    overflow-y: auto;
+    overflow-y: scroll;
     padding: 8px 0;
     min-height: 0;
+    height: 0;
 }
 
 .user-item {
