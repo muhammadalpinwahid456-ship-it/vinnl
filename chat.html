@@ -1366,43 +1366,47 @@
         };
 
         window.saveMyNote = async function() {
-            if (!currentUser) return;
-            const text = document.getElementById('noteTextInput').value.trim();
-            const youtubeUrl = document.getElementById('noteYoutubeInput').value.trim();
+    if (!currentUser) return;
+    const text = document.getElementById('noteTextInput').value.trim();
+    const youtubeUrl = document.getElementById('noteYoutubeInput').value.trim();
 
-            if (!text && !youtubeUrl) {
-                alert('⚠️ Isi catatan atau tambahkan lagu YouTube!');
-                return;
-            }
+    if (!text && !youtubeUrl) {
+        alert('⚠️ Isi catatan atau tambahkan lagu YouTube!');
+        return;
+    }
 
-            const videoId = extractYoutubeId(youtubeUrl);
+    const videoId = extractYoutubeId(youtubeUrl);
+    
+    // TAMBAH: Extract song title dari text
+    const songTitle = text || 'Untitled Song';
+    const artistName = 'Unknown Artist'; // Atau fetch dari Genius
 
-            const now = Date.now();
-            const noteData = {
-                text: text,
-                youtubeUrl: youtubeUrl,
-                youtubeId: videoId || null,
-                userId: currentUser.uid,
-                userName: currentUserName,
-                userPhoto: currentUserPhoto,
-                updatedAt: now,
-                expiresAt: now + 24 * 60 * 60 * 1000, // 24 jam dari sekarang
-                likes: {},
-                replies: {}
-            };
+    const now = Date.now();
+    const noteData = {
+        text: text,
+        youtubeUrl: youtubeUrl,
+        youtubeId: videoId || null,
+        songTitle: songTitle,           // ← TAMBAH
+        artistName: artistName,         // ← TAMBAH
+        userId: currentUser.uid,
+        userName: currentUserName,
+        userPhoto: currentUserPhoto,
+        updatedAt: now,
+        expiresAt: now + 24 * 60 * 60 * 1000,
+        likes: {},
+        replies: {}
+    };
 
-            try {
-                await set(ref(database, `notes/${currentUser.uid}`), noteData);
-                closeNoteModal();
-                renderMyNote(noteData);
-                loadNotesPanel();
-                alert('✅ Catatan berhasil disimpan!');
-            } catch (err) {
-                alert('❌ Gagal menyimpan: ' + err.message);
-                console.error('Error saving note:', err);
-            }
-        };
-
+    try {
+        await set(ref(database, `notes/${currentUser.uid}`), noteData);
+        closeNoteModal();
+        renderMyNote(noteData);
+        loadNotesPanel();
+        alert('✅ Catatan berhasil disimpan!');
+    } catch (err) {
+        alert('❌ Gagal menyimpan: ' + err.message);
+    }
+};
         window.deleteMyNote = async function() {
             if (!currentUser) return;
             if (!confirm('Hapus catatan ini?')) return;
@@ -1583,12 +1587,15 @@
 
         let audioPlaying = false;
 
-        window.openNoteViewer = function(userId) {
-            viewingNoteUserId = userId;
-            audioPlaying = false;
-            get(ref(database, `notes/${userId}`)).then(snap => {
-                if (!snap.exists()) return;
-                const note = snap.val();
+       window.openNoteViewer = function(userId) {
+    get(ref(database, `notes/${userId}`)).then(snap => {
+        if (!snap.exists()) return;
+        const note = snap.val();
+        
+        // ← GUNAKAN INSTAGRAM VIEWER BARU
+        instagramNoteViewer.openViewer(userId, note);
+    }).catch(err => console.error('Error opening note viewer:', err));
+};
 
                 document.getElementById('viewerAvatar').src = note.userPhoto || 'https://via.placeholder.com/40';
                 document.getElementById('viewerName').textContent = note.userName || 'User';
