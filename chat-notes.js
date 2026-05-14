@@ -9,8 +9,6 @@ class InstagramNoteViewer {
         this.duration = 0;
         this.lyrics = [];
         this.currentLyricIndex = 0;
-        this.clipStartTime = 0;
-        this.clipEndTime = 0;
         this.youtubePlayer = null;
         this.animationFrameId = null;
     }
@@ -23,16 +21,30 @@ class InstagramNoteViewer {
         return `${mins}:${String(secs).padStart(2, '0')}`;
     }
 
+    // Escape HTML
+    escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
     // Fetch lyrics dari LRCLIB API
     async fetchLyricsFromLRCLIB(songTitle, artistName) {
         try {
             const query = `${songTitle} ${artistName}`.trim();
+            if (!query) {
+                console.log('⚠️ Song title atau artist name kosong');
+                return [];
+            }
+
+            console.log('🔍 Searching LRCLIB for:', query);
             const response = await fetch(
                 `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`
             );
             
             if (!response.ok) {
-                console.warn('❌ LRCLIB search failed');
+                console.warn('❌ LRCLIB search failed with status:', response.status);
                 return [];
             }
 
@@ -44,6 +56,8 @@ class InstagramNoteViewer {
 
             // Ambil hasil pertama (paling akurat)
             const trackId = results[0].id;
+            console.log('✅ Found track ID:', trackId);
+            
             const trackResponse = await fetch(
                 `https://lrclib.net/api/get/${trackId}`
             );
@@ -57,11 +71,14 @@ class InstagramNoteViewer {
             
             // Parse synced lyrics (format: [MM:SS.MS]lirik)
             if (trackData.syncedLyrics) {
+                console.log('✅ Synced lyrics found');
                 return this.parseSyncedLyrics(trackData.syncedLyrics);
             } else if (trackData.plainLyrics) {
+                console.log('✅ Plain lyrics found');
                 return this.parsePlainLyrics(trackData.plainLyrics);
             }
 
+            console.warn('⚠️ No lyrics found in track data');
             return [];
         } catch (error) {
             console.error('❌ Error fetching lyrics:', error);
@@ -75,12 +92,12 @@ class InstagramNoteViewer {
         const parsed = [];
 
         lines.forEach(line => {
-            const timeMatch = line.match(/\[(\d+):(\d+\.\d+)\]/);
+            const timeMatch = line.match(/\[(\d+):(\d+\.?\d*)\]/);
             if (timeMatch) {
                 const minutes = parseInt(timeMatch[1]);
                 const seconds = parseFloat(timeMatch[2]);
                 const totalSeconds = minutes * 60 + seconds;
-                const lyricText = line.replace(/\[\d+:\d+\.\d+\]/, '').trim();
+                const lyricText = line.replace(/\[\d+:\d+\.?\d*\]/, '').trim();
 
                 if (lyricText) {
                     parsed.push({
@@ -91,16 +108,20 @@ class InstagramNoteViewer {
             }
         });
 
+        console.log(`✅ Parsed ${parsed.length} synced lyrics lines`);
         return parsed;
     }
 
     // Parse plain lyrics (tanpa timestamp)
     parsePlainLyrics(plainLyrics) {
         const lines = plainLyrics.split('\n').filter(line => line.trim());
-        return lines.map((text, index) => ({
+        const parsed = lines.map((text, index) => ({
             time: index * 3, // Estimasi 3 detik per baris
             text: text.trim()
         }));
+        
+        console.log(`✅ Parsed ${parsed.length} plain lyrics lines`);
+        return parsed;
     }
 
     // Update lyric display berdasarkan waktu
@@ -114,6 +135,7 @@ class InstagramNoteViewer {
             const lineEl = document.createElement('div');
             lineEl.className = 'lyrics-line';
 
+            // Determine if this line is active, past, or upcoming
             if (currentTime >= line.time && 
                 (index === this.lyrics.length - 1 || currentTime < this.lyrics[index + 1].time)) {
                 lineEl.classList.add('active');
@@ -142,17 +164,20 @@ class InstagramNoteViewer {
                     events: {
                         'onReady': (event) => {
                             this.duration = event.target.getDuration();
-                            document.getElementById('music-duration').textContent = 
-                                this.formatTime(this.duration);
-                            this.clipEndTime = this.duration;
-                            document.getElementById('clip-end-time').value = this.formatTime(this.duration);
+                            const durationEl = document.getElementById('music-duration');
+                            if (durationEl) {
+                                durationEl.textContent = this.formatTime(this.duration);
+                            }
+                            console.log('✅ YouTube player ready. Duration:', this.formatTime(this.duration));
                             resolve();
                         },
                         'onStateChange': (event) => {
                             if (event.data === YT.PlayerState.PLAYING) {
+                                console.log('▶️ Video playing');
                                 this.isPlaying = true;
                                 this.updatePlayback();
                             } else if (event.data === YT.PlayerState.PAUSED) {
+                                console.log('⏸️ Video paused');
                                 this.isPlaying = false;
                                 cancelAnimationFrame(this.animationFrameId);
                             }
@@ -175,13 +200,6 @@ class InstagramNoteViewer {
 
         this.currentTime = this.youtubePlayer.getCurrentTime();
         
-        // Update timeline
-        const percent = (this.currentTime / this.duration) * 100;
-        const progressBar = document.getElementById('timeline-progress');
-        if (progressBar) {
-            progressBar.style.width = percent + '%';
-        }
-
         // Update current time display
         const currentTimeEl = document.getElementById('music-current-time');
         if (currentTimeEl) {
@@ -197,71 +215,24 @@ class InstagramNoteViewer {
 
     // Toggle play/pause
     togglePlay() {
-        if (!this.youtubePlayer) return;
+        if (!this.youtubePlayer) {
+            console.error('❌ YouTube player not initialized');
+            return;
+        }
 
         const playBtn = document.getElementById('music-play-btn');
         
         if (this.isPlaying) {
             this.youtubePlayer.pauseVideo();
-            playBtn.textContent = '▶ Putar';
+            if (playBtn) playBtn.textContent = '▶ Putar Musik';
             this.isPlaying = false;
             cancelAnimationFrame(this.animationFrameId);
         } else {
-            // Cek apakah dalam clip range
-            const seekTo = Math.max(this.clipStartTime, this.currentTime);
-            this.youtubePlayer.seekTo(seekTo);
             this.youtubePlayer.playVideo();
-            playBtn.textContent = '⏸ Jeda';
+            if (playBtn) playBtn.textContent = '⏸ Henti';
             this.isPlaying = true;
             this.updatePlayback();
         }
-    }
-
-    // Set clip start time
-    setClipStart() {
-        if (!this.youtubePlayer) return;
-        const currentTime = this.youtubePlayer.getCurrentTime();
-        this.clipStartTime = currentTime;
-        document.getElementById('clip-start-time').value = this.formatTime(currentTime);
-        this.updateClipRange();
-    }
-
-    // Set clip end time
-    setClipEnd() {
-        if (!this.youtubePlayer) return;
-        const currentTime = this.youtubePlayer.getCurrentTime();
-        this.clipEndTime = currentTime;
-        document.getElementById('clip-end-time').value = this.formatTime(currentTime);
-        this.updateClipRange();
-    }
-
-    // Update clip range visualization
-    updateClipRange() {
-        const track = document.querySelector('.timeline-track');
-        if (!track) return;
-
-        const startPercent = (this.clipStartTime / this.duration) * 100;
-        const endPercent = (this.clipEndTime / this.duration) * 100;
-        const width = endPercent - startPercent;
-
-        let rangeEl = track.querySelector('.timeline-clip-range');
-        if (!rangeEl) {
-            rangeEl = document.createElement('div');
-            rangeEl.className = 'timeline-clip-range';
-            track.appendChild(rangeEl);
-        }
-
-        rangeEl.style.left = startPercent + '%';
-        rangeEl.style.width = width + '%';
-    }
-
-    // Parse waktu dari input (MM:SS)
-    parseTime(timeString) {
-        const parts = timeString.split(':');
-        if (parts.length !== 2) return 0;
-        const minutes = parseInt(parts[0]) || 0;
-        const seconds = parseInt(parts[1]) || 0;
-        return minutes * 60 + seconds;
     }
 
     // Open viewer modal
@@ -279,9 +250,9 @@ class InstagramNoteViewer {
             <div class="note-viewer-instagram">
                 <!-- Header -->
                 <div class="note-insta-header">
-                    <img class="note-insta-avatar" src="${escapeHtml(noteData.userPhoto)}" alt="user">
+                    <img class="note-insta-avatar" src="${this.escapeHtml(noteData.userPhoto)}" alt="user">
                     <div class="note-insta-user-info">
-                        <p class="note-insta-username">${escapeHtml(noteData.userName)}</p>
+                        <p class="note-insta-username">${this.escapeHtml(noteData.userName)}</p>
                         <p class="note-insta-time">${formatTimeAgo(noteData.updatedAt)}</p>
                     </div>
                     <button class="note-insta-close" onclick="closeInstagramNoteViewer()">✕</button>
@@ -289,13 +260,13 @@ class InstagramNoteViewer {
 
                 <!-- Content -->
                 <div class="note-insta-content">
-                    <!-- Music Info -->
+                    <!-- Music Info Card -->
                     <div class="note-music-info-card">
                         <p class="music-song-title">
                             <span class="music-icon">🎵</span>
-                            <span id="music-song-title">${escapeHtml(noteData.songTitle || 'Loading...')}</span>
+                            <span id="music-song-title">${this.escapeHtml(noteData.songTitle || 'Loading...')}</span>
                         </p>
-                        <p class="music-artist" id="music-artist">${escapeHtml(noteData.artistName || '')}</p>
+                        <p class="music-artist" id="music-artist">${this.escapeHtml(noteData.artistName || 'Unknown Artist')}</p>
                         <div class="music-duration-info">
                             <span id="music-current-time">0:00</span>
                             <span id="music-duration">0:00</span>
@@ -307,38 +278,10 @@ class InstagramNoteViewer {
                         <p class="no-lyrics-message">⏳ Memuat lirik...</p>
                     </div>
 
-                    <!-- Clip Editor -->
-                    <div class="music-clip-editor">
-                        <div class="clip-title">Edit Klip Musik</div>
-                        
-                        <div class="clip-time-inputs">
-                            <div class="clip-time-input">
-                                <div class="clip-time-label">Mulai</div>
-                                <input type="text" id="clip-start-time" value="0:00" readonly>
-                            </div>
-                            <div class="clip-time-input">
-                                <div class="clip-time-label">Akhir</div>
-                                <input type="text" id="clip-end-time" value="0:00" readonly>
-                            </div>
-                        </div>
-
-                        <div class="clip-timeline">
-                            <div class="timeline-track">
-                                <div class="timeline-progress" id="timeline-progress"></div>
-                            </div>
-                        </div>
-
-                        <div class="music-controls-row">
-                            <button class="music-control-btn" onclick="instagramNoteViewer.setClipStart()" title="Set sebagai awal klip">
-                                ⏱ Mulai
-                            </button>
-                            <button class="music-control-btn" onclick="instagramNoteViewer.setClipEnd()" title="Set sebagai akhir klip">
-                                ⏱ Akhir
-                            </button>
-                        </div>
-
+                    <!-- Music Controls -->
+                    <div class="music-controls-row">
                         <button class="music-play-btn" id="music-play-btn" onclick="instagramNoteViewer.togglePlay()">
-                            ▶ Putar
+                            ▶ Putar Musik
                         </button>
                     </div>
                 </div>
@@ -374,6 +317,7 @@ class InstagramNoteViewer {
         // Initialize YouTube player
         if (noteData.youtubeId) {
             try {
+                console.log('🎬 Initializing YouTube player with video ID:', noteData.youtubeId);
                 await this.initYoutubePlayer(noteData.youtubeId);
             } catch (error) {
                 console.error('❌ Error initializing YouTube player:', error);
@@ -381,6 +325,7 @@ class InstagramNoteViewer {
         }
 
         // Fetch lyrics
+        console.log('📖 Fetching lyrics for:', noteData.songTitle, '-', noteData.artistName);
         const lyrics = await this.fetchLyricsFromLRCLIB(
             noteData.songTitle || '',
             noteData.artistName || ''
@@ -391,7 +336,7 @@ class InstagramNoteViewer {
         if (lyrics.length === 0) {
             const container = document.getElementById('note-lyrics-container');
             if (container) {
-                container.innerHTML = '<p class="no-lyrics-message">😔 Lirik tidak tersedia</p>';
+                container.innerHTML = '<p class="no-lyrics-message">😔 Lirik tidak tersedia untuk lagu ini</p>';
             }
         } else {
             this.updateLyricDisplay(0);
@@ -409,6 +354,8 @@ class InstagramNoteViewer {
         if (modal) {
             modal.remove();
         }
+        this.lyrics = [];
+        this.currentTime = 0;
     }
 }
 
