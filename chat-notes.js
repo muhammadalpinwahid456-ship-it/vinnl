@@ -1,27 +1,25 @@
-/* ===== INSTAGRAM-STYLE NOTES WITH LRCLIB LYRICS ===== */
+/* ===== INSTAGRAM-STYLE NOTES WITH SYNCED LYRICS ===== */
 
 class InstagramNoteViewer {
     constructor() {
         this.currentNote = null;
-        this.currentSongData = null;
         this.isPlaying = false;
         this.currentTime = 0;
         this.duration = 0;
         this.lyrics = [];
-        this.currentLyricIndex = 0;
         this.youtubePlayer = null;
         this.animationFrameId = null;
+        this.ytApiLoading = false;
+        this._lyricsCache = {};
     }
 
-    // Format time untuk display (MM:SS)
     formatTime(seconds) {
-        if (!seconds || isNaN(seconds)) return "0:00";
+        if (!seconds || isNaN(seconds)) return '0:00';
         const mins = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
         return `${mins}:${String(secs).padStart(2, '0')}`;
     }
 
-    // Escape HTML
     escapeHtml(text) {
         if (!text) return '';
         const div = document.createElement('div');
@@ -29,390 +27,315 @@ class InstagramNoteViewer {
         return div.innerHTML;
     }
 
-    // Fetch lyrics dari LRCLIB API
-    async fetchLyricsFromLRCLIB(songTitle, artistName) {
-        try {
-            const query = `${songTitle} ${artistName}`.trim();
-            if (!query) {
-                console.log('⚠️ Song title atau artist name kosong');
-                return [];
-            }
-
-            console.log('🔍 Searching LRCLIB for:', query);
-            const response = await fetch(
-                `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`
-            );
-            
-            if (!response.ok) {
-                console.warn('❌ LRCLIB search failed with status:', response.status);
-                return [];
-            }
-
-            const results = await response.json();
-            if (!results || results.length === 0) {
-                console.warn('⚠️ Lirik tidak ditemukan di LRCLIB');
-                return [];
-            }
-
-            // Ambil hasil pertama (paling akurat)
-            const trackId = results[0].id;
-            console.log('✅ Found track ID:', trackId);
-            
-            const trackResponse = await fetch(
-                `https://lrclib.net/api/get/${trackId}`
-            );
-
-            if (!trackResponse.ok) {
-                console.warn('❌ Gagal fetch lirik detail');
-                return [];
-            }
-
-            const trackData = await trackResponse.json();
-            
-            // Parse synced lyrics (format: [MM:SS.MS]lirik)
-            if (trackData.syncedLyrics) {
-                console.log('✅ Synced lyrics found');
-                return this.parseSyncedLyrics(trackData.syncedLyrics);
-            } else if (trackData.plainLyrics) {
-                console.log('✅ Plain lyrics found');
-                return this.parsePlainLyrics(trackData.plainLyrics);
-            }
-
-            console.warn('⚠️ No lyrics found in track data');
-            return [];
-        } catch (error) {
-            console.error('❌ Error fetching lyrics:', error);
-            return [];
+    // ===== FETCH LYRICS dari LRCLIB =====
+    async fetchLyrics(songTitle, artistName, videoId) {
+        const cacheKey = videoId || (songTitle + artistName);
+        if (this._lyricsCache[cacheKey]) {
+            return this._lyricsCache[cacheKey];
         }
-    }
+        const query = [songTitle, artistName].filter(Boolean).join(' ').trim();
+        if (!query) return [];
+        try {
+            console.log('Fetching lyrics:', query);
+            const res = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent(query)}`);
+            if (!res.ok) return [];
+            const results = await res.json();
+            if (!results || results.length === 0) return [];
 
-    // Parse synced lyrics [MM:SS.MS]lirik format
-    parseSyncedLyrics(syncedLyrics) {
-        const lines = syncedLyrics.split('\n').filter(line => line.trim());
-        const parsed = [];
-
-        lines.forEach(line => {
-            const timeMatch = line.match(/\[(\d+):(\d+\.?\d*)\]/);
-            if (timeMatch) {
-                const minutes = parseInt(timeMatch[1]);
-                const seconds = parseFloat(timeMatch[2]);
-                const totalSeconds = minutes * 60 + seconds;
-                const lyricText = line.replace(/\[\d+:\d+\.?\d*\]/, '').trim();
-
-                if (lyricText) {
-                    parsed.push({
-                        time: totalSeconds,
-                        text: lyricText
-                    });
+            const chosen = results.find(r => r.syncedLyrics) || results[0];
+            let parsed = [];
+            if (chosen.syncedLyrics) {
+                parsed = this.parseSyncedLyrics(chosen.syncedLyrics);
+            } else {
+                const d = await fetch(`https://lrclib.net/api/get/${chosen.id}`);
+                if (d.ok) {
+                    const detail = await d.json();
+                    if (detail.syncedLyrics) parsed = this.parseSyncedLyrics(detail.syncedLyrics);
+                    else if (detail.plainLyrics) parsed = this.parsePlainLyrics(detail.plainLyrics);
                 }
             }
-        });
-
-        console.log(`✅ Parsed ${parsed.length} synced lyrics lines`);
-        return parsed;
-    }
-
-    // Parse plain lyrics (tanpa timestamp)
-    parsePlainLyrics(plainLyrics) {
-        const lines = plainLyrics.split('\n').filter(line => line.trim());
-        const parsed = lines.map((text, index) => ({
-            time: index * 3, // Estimasi 3 detik per baris
-            text: text.trim()
-        }));
-        
-        console.log(`✅ Parsed ${parsed.length} plain lyrics lines`);
-        return parsed;
-    }
-
-    // Update lyric display berdasarkan waktu
-    updateLyricDisplay(currentTime) {
-        const container = document.getElementById('note-lyrics-container');
-        if (!container || this.lyrics.length === 0) return;
-
-        container.innerHTML = '';
-
-        this.lyrics.forEach((line, index) => {
-            const lineEl = document.createElement('div');
-            lineEl.className = 'lyrics-line';
-
-            // Determine if this line is active, past, or upcoming
-            if (currentTime >= line.time && 
-                (index === this.lyrics.length - 1 || currentTime < this.lyrics[index + 1].time)) {
-                lineEl.classList.add('active');
-            } else if (currentTime > line.time) {
-                lineEl.classList.add('past');
-            } else {
-                lineEl.classList.add('upcoming');
-            }
-
-            lineEl.textContent = line.text;
-            container.appendChild(lineEl);
-        });
-    }
-
-    // Inisialisasi YouTube Player
-    initYoutubePlayer(videoId) {
-        return new Promise((resolve) => {
-            const tag = document.createElement('script');
-            tag.src = 'https://www.youtube.com/iframe_api';
-            
-            window.onYouTubeIframeAPIReady = () => {
-                this.youtubePlayer = new YT.Player('note-youtube-iframe', {
-                    height: '1',
-                    width: '1',
-                    videoId: videoId,
-                    events: {
-                        'onReady': (event) => {
-                            this.duration = event.target.getDuration();
-                            const durationEl = document.getElementById('music-duration');
-                            if (durationEl) {
-                                durationEl.textContent = this.formatTime(this.duration);
-                            }
-                            console.log('✅ YouTube player ready. Duration:', this.formatTime(this.duration));
-                            resolve();
-                        },
-                        'onStateChange': (event) => {
-                            if (event.data === YT.PlayerState.PLAYING) {
-                                console.log('▶️ Video playing');
-                                this.isPlaying = true;
-                                this.updatePlayback();
-                            } else if (event.data === YT.PlayerState.PAUSED) {
-                                console.log('⏸️ Video paused');
-                                this.isPlaying = false;
-                                cancelAnimationFrame(this.animationFrameId);
-                            }
-                        }
-                    }
-                });
-            };
-
-            if (!window.YT) {
-                document.head.appendChild(tag);
-            } else {
-                window.onYouTubeIframeAPIReady();
-            }
-        });
-    }
-
-    // Update playback
-    updatePlayback() {
-        if (!this.youtubePlayer || !this.isPlaying) return;
-
-        this.currentTime = this.youtubePlayer.getCurrentTime();
-        
-        // Update current time display
-        const currentTimeEl = document.getElementById('music-current-time');
-        if (currentTimeEl) {
-            currentTimeEl.textContent = this.formatTime(this.currentTime);
+            this._lyricsCache[cacheKey] = parsed;
+            return parsed;
+        } catch (err) {
+            console.error('Lyrics fetch error:', err);
+            return [];
         }
-
-        // Update lyric display
-        this.updateLyricDisplay(this.currentTime);
-
-        // Loop untuk update
-        this.animationFrameId = requestAnimationFrame(() => this.updatePlayback());
     }
 
-    // Toggle play/pause
-    togglePlay() {
-        if (!this.youtubePlayer) {
-            console.error('❌ YouTube player not initialized');
+    parseSyncedLyrics(raw) {
+        const parsed = [];
+        raw.split('\n').forEach(line => {
+            const m = line.match(/\[(\d+):(\d+\.?\d*)\](.*)/);
+            if (m) {
+                const time = parseInt(m[1]) * 60 + parseFloat(m[2]);
+                const text = m[3].trim();
+                if (text) parsed.push({ time, text });
+            }
+        });
+        return parsed;
+    }
+
+    parsePlainLyrics(raw) {
+        return raw.split('\n').filter(l => l.trim()).map((text, i) => ({ time: i * 4, text: text.trim() }));
+    }
+
+    // ===== RENDER LYRICS dengan scroll aktif ke tengah =====
+    renderLyrics(currentTime) {
+        const container = document.getElementById('insta-lyrics-container');
+        if (!container) return;
+        if (this.lyrics.length === 0) {
+            container.innerHTML = '<p class="no-lyrics-message">😔 Lirik tidak tersedia</p>';
             return;
         }
-
-        const playBtn = document.getElementById('music-play-btn');
-        
-        if (this.isPlaying) {
-            this.youtubePlayer.pauseVideo();
-            if (playBtn) playBtn.textContent = '▶ Putar Musik';
-            this.isPlaying = false;
-            cancelAnimationFrame(this.animationFrameId);
-        } else {
-            this.youtubePlayer.playVideo();
-            if (playBtn) playBtn.textContent = '⏸ Henti';
-            this.isPlaying = true;
-            this.updatePlayback();
+        let activeIdx = 0;
+        for (let i = 0; i < this.lyrics.length; i++) {
+            if (currentTime >= this.lyrics[i].time) activeIdx = i;
+            else break;
         }
-    }
-
-    // Open viewer modal
-    async openViewer(userId, noteData) {
-        this.currentNote = { userId, ...noteData };
-        this.isPlaying = false;
-
-        // Create modal HTML
-        const modal = document.createElement('div');
-        modal.id = 'note-viewer-instagram-modal';
-        modal.className = 'modal note-viewer-modal-instagram';
-        modal.style.display = 'flex';
-
-        modal.innerHTML = `
-            <div class="note-viewer-instagram">
-                <!-- Header -->
-                <div class="note-insta-header">
-                    <img class="note-insta-avatar" src="${this.escapeHtml(noteData.userPhoto)}" alt="user">
-                    <div class="note-insta-user-info">
-                        <p class="note-insta-username">${this.escapeHtml(noteData.userName)}</p>
-                        <p class="note-insta-time">${formatTimeAgo(noteData.updatedAt)}</p>
-                    </div>
-                    <button class="note-insta-close" onclick="closeInstagramNoteViewer()">✕</button>
-                </div>
-
-                <!-- Content -->
-                <div class="note-insta-content">
-                    <!-- Music Info Card -->
-                    <div class="note-music-info-card">
-                        <p class="music-song-title">
-                            <span class="music-icon">🎵</span>
-                            <span id="music-song-title">${this.escapeHtml(noteData.songTitle || 'Loading...')}</span>
-                        </p>
-                        <p class="music-artist" id="music-artist">${this.escapeHtml(noteData.artistName || 'Unknown Artist')}</p>
-                        <div class="music-duration-info">
-                            <span id="music-current-time">0:00</span>
-                            <span id="music-duration">0:00</span>
-                        </div>
-                    </div>
-
-                    <!-- Lyrics Display -->
-                    <div class="note-lyrics-container" id="note-lyrics-container">
-                        <p class="no-lyrics-message">⏳ Memuat lirik...</p>
-                    </div>
-
-                    <!-- Music Controls -->
-                    <div class="music-controls-row">
-                        <button class="music-play-btn" id="music-play-btn" onclick="instagramNoteViewer.togglePlay()">
-                            ▶ Putar Musik
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Actions -->
-                <div class="note-insta-actions">
-                    <button class="note-action-btn-insta ${noteData.likes && noteData.likes[currentUser.uid] ? 'liked' : ''}" 
-                            onclick="toggleLikeInstagramNote('${userId}')">
-                        ${noteData.likes && noteData.likes[currentUser.uid] ? '❤️' : '🤍'} 
-                        ${Object.keys(noteData.likes || {}).length}
-                    </button>
-                    <button class="note-action-btn-insta" onclick="focusReplyInstagramNote()">
-                        💬 ${Object.keys(noteData.replies || {}).length}
-                    </button>
-                </div>
-            </div>
-
-            <!-- Hidden YouTube Iframe -->
-            <div class="note-youtube-iframe-hidden">
-                <div id="note-youtube-iframe"></div>
-            </div>
-        `;
-
-        document.body.appendChild(modal);
-
-        // Close on outside click
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                closeInstagramNoteViewer();
-            }
+        container.innerHTML = '';
+        this.lyrics.forEach((line, i) => {
+            const el = document.createElement('div');
+            el.className = 'lyrics-line' + (i === activeIdx ? ' active' : i < activeIdx ? ' past' : ' upcoming');
+            el.textContent = line.text;
+            container.appendChild(el);
         });
-
-        // Initialize YouTube player
-        if (noteData.youtubeId) {
-            try {
-                console.log('🎬 Initializing YouTube player with video ID:', noteData.youtubeId);
-                await this.initYoutubePlayer(noteData.youtubeId);
-            } catch (error) {
-                console.error('❌ Error initializing YouTube player:', error);
-            }
-        }
-
-        // Fetch lyrics
-        console.log('📖 Fetching lyrics for:', noteData.songTitle, '-', noteData.artistName);
-        const lyrics = await this.fetchLyricsFromLRCLIB(
-            noteData.songTitle || '',
-            noteData.artistName || ''
-        );
-
-        this.lyrics = lyrics;
-
-        if (lyrics.length === 0) {
-            const container = document.getElementById('note-lyrics-container');
-            if (container) {
-                container.innerHTML = '<p class="no-lyrics-message">😔 Lirik tidak tersedia untuk lagu ini</p>';
-            }
-        } else {
-            this.updateLyricDisplay(0);
+        // Scroll baris aktif ke tengah (Instagram style)
+        const activeEl = container.querySelectorAll('.lyrics-line')[activeIdx];
+        if (activeEl) {
+            const mid = container.offsetHeight / 2;
+            container.scrollTo({ top: activeEl.offsetTop - mid + activeEl.offsetHeight / 2, behavior: 'smooth' });
         }
     }
 
-    // Close viewer
-    close() {
-        if (this.youtubePlayer && this.isPlaying) {
-            this.youtubePlayer.stopVideo();
-        }
-        cancelAnimationFrame(this.animationFrameId);
-        
-        const modal = document.getElementById('note-viewer-instagram-modal');
-        if (modal) {
-            modal.remove();
-        }
-        this.lyrics = [];
-        this.currentTime = 0;
+    // ===== YOUTUBE IFRAME API =====
+    loadYouTubeAPI() {
+        return new Promise((resolve) => {
+            if (window.YT && window.YT.Player) { resolve(); return; }
+            if (this.ytApiLoading) {
+                const chk = setInterval(() => { if (window.YT && window.YT.Player) { clearInterval(chk); resolve(); } }, 100);
+                return;
+            }
+            this.ytApiLoading = true;
+            window.onYouTubeIframeAPIReady = () => { this.ytApiLoading = false; resolve(); };
+            const tag = document.createElement('script');
+            tag.src = 'https://www.youtube.com/iframe_api';
+            document.head.appendChild(tag);
+        });
     }
-}
 
-// Global instance
-let instagramNoteViewer = new InstagramNoteViewer();
-
-// Helper functions
-function formatTimeAgo(timestamp) {
-    if (!timestamp) return '';
-    const diff = Date.now() - timestamp;
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-    if (minutes < 1) return 'Baru saja';
-    if (minutes < 60) return `${minutes}m lalu`;
-    if (hours < 24) return `${hours}h lalu`;
-    return `${days}d lalu`;
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-function closeInstagramNoteViewer() {
-    instagramNoteViewer.close();
-}
-
-function toggleLikeInstagramNote(userId) {
-    if (!currentUser) return;
-    
-    const likeRef = ref(database, `notes/${userId}/likes/${currentUser.uid}`);
-    get(likeRef).then(snap => {
-        if (snap.exists()) {
-            set(likeRef, null);
-        } else {
-            set(likeRef, true);
+    async initPlayer(videoId) {
+        await this.loadYouTubeAPI();
+        if (this.youtubePlayer && this.youtubePlayer.destroy) {
+            try { this.youtubePlayer.destroy(); } catch(e) {}
         }
-        // Refresh viewer
-        if (instagramNoteViewer.currentNote) {
-            get(ref(database, `notes/${userId}`)).then(snap => {
-                if (snap.exists()) {
-                    instagramNoteViewer.openViewer(userId, snap.val());
+        this.youtubePlayer = null;
+        return new Promise((resolve) => {
+            this.youtubePlayer = new YT.Player('insta-yt-player', {
+                height: '1', width: '1', videoId,
+                playerVars: { autoplay: 0, controls: 0, origin: location.origin },
+                events: {
+                    onReady: (e) => {
+                        this.duration = e.target.getDuration();
+                        const durEl = document.getElementById('insta-duration');
+                        if (durEl) durEl.textContent = this.formatTime(this.duration);
+                        resolve();
+                    },
+                    onStateChange: (e) => {
+                        if (e.data === YT.PlayerState.PLAYING) {
+                            this.isPlaying = true; this._tick(); this._updatePlayBtn(true);
+                        } else if (e.data === YT.PlayerState.PAUSED || e.data === YT.PlayerState.ENDED) {
+                            this.isPlaying = false; cancelAnimationFrame(this.animationFrameId); this._updatePlayBtn(false);
+                        }
+                    },
+                    onError: (e) => { console.error('YT error:', e.data); this._fallback(videoId); resolve(); }
                 }
             });
-        }
-    }).catch(err => console.error('Error toggling like:', err));
+        });
+    }
+
+    _fallback(videoId) {
+        const w = document.getElementById('insta-yt-wrapper');
+        if (w) w.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=0&controls=1" width="100%" height="60" frameborder="0" allow="autoplay;encrypted-media" style="border-radius:8px;position:relative;opacity:1;pointer-events:auto;width:100%;height:60px;"></iframe>`;
+    }
+
+    _tick() {
+        if (!this.youtubePlayer || !this.isPlaying) return;
+        try { this.currentTime = this.youtubePlayer.getCurrentTime() || 0; } catch(e) { return; }
+        const ctEl = document.getElementById('insta-current-time');
+        if (ctEl) ctEl.textContent = this.formatTime(this.currentTime);
+        const prog = document.getElementById('insta-progress');
+        if (prog && this.duration > 0) prog.style.width = ((this.currentTime / this.duration) * 100) + '%';
+        this.renderLyrics(this.currentTime);
+        this.animationFrameId = requestAnimationFrame(() => this._tick());
+    }
+
+    _updatePlayBtn(playing) {
+        const btn = document.getElementById('insta-play-btn');
+        if (!btn) return;
+        btn.innerHTML = playing
+            ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="white"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`
+            : `<svg width="20" height="20" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg>`;
+    }
+
+    togglePlay() {
+        if (!this.youtubePlayer) return;
+        if (this.isPlaying) this.youtubePlayer.pauseVideo();
+        else this.youtubePlayer.playVideo();
+    }
+
+    // ===== BUKA MODAL =====
+    async open(userId, note) {
+        this.close();
+        this.currentNote = { userId, ...note };
+        this.isPlaying = false; this.currentTime = 0; this.lyrics = [];
+
+        const modal = document.createElement('div');
+        modal.id = 'insta-note-modal';
+        modal.className = 'insta-note-overlay';
+        modal.innerHTML = this._buildHTML(userId, note);
+        document.body.appendChild(modal);
+        modal.addEventListener('click', (e) => { if (e.target === modal) this.close(); });
+
+        const songTitle = note.songTitle || note.text || '';
+        const artistName = note.artistName || '';
+
+        // Fetch lyrics dan init player secara paralel
+        const [lyrics] = await Promise.all([
+            this.fetchLyrics(songTitle, artistName, note.youtubeId),
+            note.youtubeId ? this.initPlayer(note.youtubeId).catch(e => { console.error(e); this._fallback(note.youtubeId); }) : Promise.resolve()
+        ]);
+
+        this.lyrics = lyrics || [];
+        this.renderLyrics(0);
+    }
+
+    _buildHTML(userId, note) {
+        const likeCount = Object.keys(note.likes || {}).length;
+        const replyCount = Object.keys(note.replies || {}).length;
+        const liked = note.likes && window._currentUserId && note.likes[window._currentUserId];
+        const songTitle = this.escapeHtml(note.songTitle || note.text || 'Judul tidak diketahui');
+        const artistName = this.escapeHtml(note.artistName || 'Artis tidak diketahui');
+        const timeAgo = window._formatTimeAgo ? window._formatTimeAgo(note.updatedAt) : '';
+
+        return `
+        <div class="insta-note-card">
+            <div class="insta-note-header">
+                <img class="insta-avatar" src="${this.escapeHtml(note.userPhoto||'https://via.placeholder.com/40')}" onerror="this.src='https://via.placeholder.com/40'" alt="">
+                <div class="insta-user-info">
+                    <div class="insta-username">${this.escapeHtml(note.userName||'User')}</div>
+                    <div class="insta-time">${timeAgo}</div>
+                </div>
+                <button class="insta-close-btn" onclick="window.instagramNoteViewer.close()">✕</button>
+            </div>
+
+            <div class="insta-song-info">
+                <span class="insta-song-icon">🎵</span>
+                <div>
+                    <div class="insta-song-title">${songTitle}</div>
+                    <div class="insta-song-artist">${artistName}</div>
+                </div>
+            </div>
+
+            <div class="insta-lyrics-wrap">
+                <div class="insta-lyrics-container" id="insta-lyrics-container">
+                    <p class="no-lyrics-message">⏳ Memuat lirik...</p>
+                </div>
+                <div class="insta-lyrics-fade-top"></div>
+                <div class="insta-lyrics-fade-bottom"></div>
+            </div>
+
+            <div class="insta-player-wrap">
+                <div class="insta-time-row">
+                    <span id="insta-current-time">0:00</span>
+                    <span id="insta-duration">0:00</span>
+                </div>
+                <div class="insta-progress-bar" id="insta-progress-bar" onclick="window.instagramNoteViewer._seekClick(event)">
+                    <div class="insta-progress-fill" id="insta-progress"></div>
+                </div>
+                <div class="insta-controls">
+                    <button class="insta-play-btn" id="insta-play-btn" onclick="window.instagramNoteViewer.togglePlay()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg>
+                    </button>
+                </div>
+                <div id="insta-yt-wrapper" style="position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;">
+                    <div id="insta-yt-player"></div>
+                </div>
+            </div>
+
+            <div class="insta-note-actions">
+                <button class="insta-action-btn ${liked?'liked':''}" onclick="window.instagramNoteViewer._toggleLike('${userId}')">
+                    ${liked?'❤️':'🤍'} <span id="insta-like-count">${likeCount}</span> Suka
+                </button>
+                <button class="insta-action-btn" onclick="window.instagramNoteViewer._focusReply()">
+                    💬 ${replyCount} Balas
+                </button>
+            </div>
+
+            <div class="insta-reply-wrap">
+                <input type="text" id="insta-reply-input" class="insta-reply-input"
+                       placeholder="Tulis balasan..." maxlength="100"
+                       onkeypress="if(event.key==='Enter') window.instagramNoteViewer._sendReply('${userId}')">
+                <button class="insta-reply-send" onclick="window.instagramNoteViewer._sendReply('${userId}')">Kirim</button>
+            </div>
+        </div>`;
+    }
+
+    _seekClick(e) {
+        if (!this.youtubePlayer || !this.duration) return;
+        const bar = document.getElementById('insta-progress-bar');
+        const rect = bar.getBoundingClientRect();
+        const pct = (e.clientX - rect.left) / rect.width;
+        const seekTo = pct * this.duration;
+        this.youtubePlayer.seekTo(seekTo, true);
+    }
+
+    async _toggleLike(userId) {
+        if (!window._currentUserId) return;
+        const likeRef = window._dbRef(window._database, `notes/${userId}/likes/${window._currentUserId}`);
+        try {
+            const snap = await window._dbGet(likeRef);
+            await window._dbSet(likeRef, snap.exists() ? null : true);
+            const snap2 = await window._dbGet(window._dbRef(window._database, `notes/${userId}/likes`));
+            const likes = snap2.exists() ? snap2.val() : {};
+            const count = Object.keys(likes).length;
+            const liked = !!likes[window._currentUserId];
+            const btn = document.querySelector('#insta-note-modal .insta-action-btn');
+            if (btn) {
+                btn.className = `insta-action-btn ${liked?'liked':''}`;
+                btn.innerHTML = `${liked?'❤️':'🤍'} <span id="insta-like-count">${count}</span> Suka`;
+            }
+        } catch(err) { console.error('Like error:', err); }
+    }
+
+    _focusReply() {
+        const el = document.getElementById('insta-reply-input');
+        if (el) el.focus();
+    }
+
+    async _sendReply(userId) {
+        if (!window._currentUserId) return;
+        const input = document.getElementById('insta-reply-input');
+        const text = input ? input.value.trim() : '';
+        if (!text) return;
+        try {
+            await window._dbPush(window._dbRef(window._database, `notes/${userId}/replies`), {
+                userId: window._currentUserId,
+                userName: window._currentUserName || 'User',
+                userPhoto: window._currentUserPhoto || '',
+                text, timestamp: Date.now()
+            });
+            if (input) input.value = '';
+        } catch(err) { alert('❌ Gagal kirim balasan: ' + err.message); }
+    }
+
+    close() {
+        cancelAnimationFrame(this.animationFrameId);
+        this.isPlaying = false;
+        if (this.youtubePlayer) { try { this.youtubePlayer.stopVideo(); } catch(e) {} }
+        const modal = document.getElementById('insta-note-modal');
+        if (modal) modal.remove();
+        this.lyrics = []; this.currentTime = 0;
+    }
 }
 
-function focusReplyInstagramNote() {
-    // Implement reply functionality jika diperlukan
-    console.log('Reply feature akan diimplementasikan');
-}
-
-// Export untuk digunakan di chat.html
-window.instagramNoteViewer = instagramNoteViewer;
-window.closeInstagramNoteViewer = closeInstagramNoteViewer;
-window.toggleLikeInstagramNote = toggleLikeInstagramNote;
-window.focusReplyInstagramNote = focusReplyInstagramNote;
+window.instagramNoteViewer = new InstagramNoteViewer();
