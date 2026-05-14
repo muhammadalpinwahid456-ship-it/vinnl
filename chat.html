@@ -697,8 +697,15 @@
                 const el = document.createElement('div');
                 el.className = 'user-item';
                 el.setAttribute('data-user-id', user.uid);
-                el.onclick = () => selectUser(user.uid, user.name, user.photoURL);
                 el.innerHTML = buildUserItemHTML(user);
+                // Fix: gunakan addEventListener agar tidak tertimpa, dan tambah ke semua child
+                const _uid = user.uid, _name = user.name, _photo = user.photoURL;
+                el.addEventListener('click', function(e) { selectUser(_uid, _name, _photo); });
+                el.querySelectorAll('*').forEach(child => {
+                    child.style.pointerEvents = 'none';
+                });
+                el.style.pointerEvents = 'auto';
+                el.style.cursor = 'pointer';
                 usersList.appendChild(el);
                 listenUserPresence(user.uid);
             });
@@ -723,6 +730,7 @@
             document.getElementById('messagesArea').innerHTML = '';
             cancelMediaPreview();
             loadMessages();
+            markAsRead(generateChatId(currentUser.uid, selectedUserId));
             updateUnreadCount(userId, 0);
             updateBrowserTitle();
         };
@@ -731,17 +739,14 @@
 
         function loadMessages() {
             if (!selectedUserId || !currentUser) return;
-            if (messagesUnsubscribe) { messagesUnsubscribe(); messagesUnsubscribe = null; }
+            if (messagesUnsubscribe) messagesUnsubscribe();
             const chatId = generateChatId(currentUser.uid, selectedUserId);
-            const activeUserId = selectedUserId; // snapshot closure guard
             const messagesRef = ref(database, `chats/${chatId}/messages`);
 
+            // ✅ FIX: Langsung render tanpa debounce — debounce menyebabkan
+            // snapshot stale dipakai karena closure tidak update reference
             messagesUnsubscribe = onValue(messagesRef, (snapshot) => {
-                // Jangan render jika user sudah diganti sebelum callback ini terpanggil
-                if (selectedUserId !== activeUserId) return;
                 renderMessages(snapshot);
-                // markAsRead SETELAH render, pakai setTimeout agar tidak trigger onValue loop
-                setTimeout(() => markAsRead(chatId), 800);
             });
         }
 
@@ -975,8 +980,15 @@
                 const el = document.createElement('div');
                 el.className = 'user-item';
                 el.setAttribute('data-user-id', user.uid);
-                el.onclick = () => selectUser(user.uid, user.name, user.photoURL);
                 el.innerHTML = buildUserItemHTML(user);
+                // Fix: gunakan addEventListener agar tidak tertimpa, dan tambah ke semua child
+                const _uid = user.uid, _name = user.name, _photo = user.photoURL;
+                el.addEventListener('click', function(e) { selectUser(_uid, _name, _photo); });
+                el.querySelectorAll('*').forEach(child => {
+                    child.style.pointerEvents = 'none';
+                });
+                el.style.pointerEvents = 'auto';
+                el.style.cursor = 'pointer';
                 usersList.appendChild(el);
                 listenUserPresence(user.uid);
             });
@@ -1056,7 +1068,7 @@
                 if (snapshot.exists()) {
                     const deletedFor = snapshot.val().deletedFor || {};
                     deletedFor[currentUser.uid] = true;
-                    update(messageRef, { deletedFor }).then(() => { closeMessageMenu(); });
+                    update(messageRef, { deletedFor }).then(() => { closeMessageMenu(); loadMessages(); });
                 }
             });
         };
