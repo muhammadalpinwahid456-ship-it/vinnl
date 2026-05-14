@@ -723,7 +723,6 @@
             document.getElementById('messagesArea').innerHTML = '';
             cancelMediaPreview();
             loadMessages();
-            markAsRead(generateChatId(currentUser.uid, selectedUserId));
             updateUnreadCount(userId, 0);
             updateBrowserTitle();
         };
@@ -732,14 +731,17 @@
 
         function loadMessages() {
             if (!selectedUserId || !currentUser) return;
-            if (messagesUnsubscribe) messagesUnsubscribe();
+            if (messagesUnsubscribe) { messagesUnsubscribe(); messagesUnsubscribe = null; }
             const chatId = generateChatId(currentUser.uid, selectedUserId);
+            const activeUserId = selectedUserId; // snapshot closure guard
             const messagesRef = ref(database, `chats/${chatId}/messages`);
 
-            // ✅ FIX: Langsung render tanpa debounce — debounce menyebabkan
-            // snapshot stale dipakai karena closure tidak update reference
             messagesUnsubscribe = onValue(messagesRef, (snapshot) => {
+                // Jangan render jika user sudah diganti sebelum callback ini terpanggil
+                if (selectedUserId !== activeUserId) return;
                 renderMessages(snapshot);
+                // markAsRead SETELAH render, pakai setTimeout agar tidak trigger onValue loop
+                setTimeout(() => markAsRead(chatId), 800);
             });
         }
 
@@ -753,18 +755,15 @@
             }
             messages.sort((a, b) => a.timestamp - b.timestamp);
 
-            console.log('🔄 renderMessages, jumlah pesan di DB:', messages.length);
-            messages.forEach(m => console.log('  msg:', m.key, '| text:', m.text, '| sender:', m.senderId, '| isUnsent:', m.isUnsent, '| isDeleted:', m.isDeleted, '| deletedFor:', JSON.stringify(m.deletedFor)));
-
             if (messages.length === 0) {
                 messagesArea.innerHTML = '<p class="no-messages" style="text-align:center;color:#999;padding:2rem;">Belum ada pesan. Mulai percakapan!</p>';
                 return;
             }
 
             messages.forEach(msg => {
-                if (msg.deletedFor && msg.deletedFor[currentUser.uid]) { console.log('SKIP deletedFor:', msg.key); return; }
-                if (msg.isUnsent && msg.senderId !== currentUser.uid) { console.log('SKIP isUnsent (bukan sender):', msg.key); return; }
-                if (msg.isDeleted && msg.senderId !== currentUser.uid) { console.log('SKIP isDeleted (bukan sender):', msg.key); return; }
+                if (msg.deletedFor && msg.deletedFor[currentUser.uid]) return;
+                if (msg.isUnsent && msg.senderId !== currentUser.uid) return;
+                if (msg.isDeleted && msg.senderId !== currentUser.uid) return;
 
                 const el = document.createElement('div');
                 el.className = `message ${msg.senderId === currentUser.uid ? 'sent' : 'received'}`;
@@ -1057,7 +1056,7 @@
                 if (snapshot.exists()) {
                     const deletedFor = snapshot.val().deletedFor || {};
                     deletedFor[currentUser.uid] = true;
-                    update(messageRef, { deletedFor }).then(() => { closeMessageMenu(); loadMessages(); });
+                    update(messageRef, { deletedFor }).then(() => { closeMessageMenu(); });
                 }
             });
         };
