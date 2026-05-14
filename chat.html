@@ -6,7 +6,6 @@
     <title>ALVIN Chat</title>
     <link rel="stylesheet" href="chat.style.css">
     <link rel="stylesheet" href="chat-notes.css">
-    <script src="chat-notes.js"></script>
 </head>
 <body>
     <!-- AUTH CHECK -->
@@ -387,6 +386,8 @@
         }
         // Expose agar chat-notes.js dapat menggunakan
         window._formatTimeAgo = formatTimeAgo;
+        window._escapeHtml = escapeHtml; // FIX: expose ke chat-notes.js
+        window._formatTime = formatTime;   // FIX: expose ke chat-notes.js
 
         function formatTimeLeft(expiresAt) {
             if (!expiresAt) return '';
@@ -753,6 +754,10 @@
         function renderMessages(snapshot) {
             const messagesArea = document.getElementById('messagesArea');
             if (!messagesArea) return;
+            // FIX: guard race condition — jangan render sebelum currentUser siap
+            if (!currentUser) return;
+            const myUid = currentUser.uid;
+
             messagesArea.innerHTML = '';
             let messages = [];
             if (snapshot.exists()) {
@@ -766,43 +771,45 @@
             }
 
             messages.forEach(msg => {
-                if (msg.deletedFor && msg.deletedFor[currentUser.uid]) return;
-                if (msg.isUnsent && msg.senderId !== currentUser.uid) return;
-                if (msg.isDeleted && msg.senderId !== currentUser.uid) return;
+                // FIX: gunakan myUid lokal, strict === true agar undefined tidak ikut difilter
+                if (msg.deletedFor && msg.deletedFor[myUid]) return;
+                if (msg.isUnsent === true && msg.senderId !== myUid) return;
+                if (msg.isDeleted === true && msg.senderId !== myUid) return;
 
                 const el = document.createElement('div');
-                el.className = `message ${msg.senderId === currentUser.uid ? 'sent' : 'received'}`;
+                el.className = 'message ' + (msg.senderId === myUid ? 'sent' : 'received');
                 el.setAttribute('data-message-id', msg.key);
 
                 let contentHtml = '';
-                if (msg.isDeleted) {
-                    contentHtml = '<p style="font-style:italic;color:#999;">🗑️ Pesan telah dihapus</p>';
-                } else if (msg.isUnsent) {
-                    contentHtml = '<p style="font-style:italic;color:#aaa;font-size:0.88rem;">↩️ Kamu membatalkan pengiriman pesan ini</p>';
+                if (msg.isDeleted === true) {
+                    contentHtml = '<p style="font-style:italic;color:#999;">\uD83D\uDDD1\uFE0F Pesan telah dihapus</p>';
+                } else if (msg.isUnsent === true) {
+                    contentHtml = '<p style="font-style:italic;color:#aaa;font-size:0.88rem;">\u21A9\uFE0F Kamu membatalkan pengiriman pesan ini</p>';
                 } else if (msg.mediaUrl && msg.mediaType) {
                     if (msg.mediaType === 'image') {
-                        contentHtml = `<div class="media-message" onclick="openMediaModal('${msg.mediaUrl}','image')"><img src="${msg.mediaUrl}" alt="image" style="max-width:250px;border-radius:8px;cursor:pointer;"></div>`;
+                        contentHtml = '<div class="media-message"><img src="' + msg.mediaUrl + '" alt="image" onclick="openMediaModal(\'' + msg.mediaUrl + '\',\'image\')" style="max-width:250px;border-radius:8px;cursor:pointer;"></div>';
                     } else if (msg.mediaType === 'video') {
-                        contentHtml = `<div class="media-message" onclick="openMediaModal('${msg.mediaUrl}','video')"><video src="${msg.mediaUrl}" style="max-width:250px;border-radius:8px;cursor:pointer;" onmouseover="this.controls=true" onmouseout="this.controls=false"></video></div>`;
+                        contentHtml = '<div class="media-message"><video src="' + msg.mediaUrl + '" style="max-width:250px;border-radius:8px;cursor:pointer;" onmouseover="this.controls=true" onmouseout="this.controls=false"></video></div>';
                     }
-                    if (msg.text) contentHtml += `<p style="margin-top:8px;">${escapeHtml(msg.text)}</p>`;
+                    if (msg.text) contentHtml += '<p style="margin-top:8px;">' + escapeHtml(msg.text) + '</p>';
                 } else {
-                    contentHtml = `<p>${escapeHtml(msg.text || '')}</p>`;
+                    const msgText = (msg.text != null) ? String(msg.text) : '';
+                    contentHtml = '<p>' + escapeHtml(msgText) + '</p>';
                 }
 
-                const statusHtml = msg.senderId === currentUser.uid
-                    ? `<span class="message-status"><span class="tick ${msg.isRead ? 'read' : ''}">✔✔</span></span>`
+                const statusHtml = msg.senderId === myUid
+                    ? '<span class="message-status"><span class="tick ' + (msg.isRead ? 'read' : '') + '">\u2714\u2714</span></span>'
                     : '';
 
-                el.innerHTML = `
-                    <div class="message-bubble"
-                        data-message-key="${msg.key}"
-                        data-sender-id="${msg.senderId}"
-                        data-is-unsent="${msg.isUnsent ? 'true' : 'false'}"
-                        oncontextmenu="showMessageMenu(event, '${msg.key}')">
-                        ${contentHtml}
-                        <span class="message-time">${formatTime(msg.timestamp)} ${statusHtml}</span>
-                    </div>`;
+                // FIX: gunakan DOM API bukan innerHTML agar tidak ada parsing issue
+                const bubble = document.createElement('div');
+                bubble.className = 'message-bubble';
+                bubble.dataset.messageKey = msg.key;
+                bubble.dataset.senderId = msg.senderId;
+                bubble.dataset.isUnsent = msg.isUnsent === true ? 'true' : 'false';
+                bubble.addEventListener('contextmenu', function(e) { showMessageMenu(e, msg.key); });
+                bubble.innerHTML = contentHtml + '<span class="message-time">' + formatTime(msg.timestamp) + ' ' + statusHtml + '</span>';
+                el.appendChild(bubble);
                 messagesArea.appendChild(el);
             });
             messagesArea.scrollTop = messagesArea.scrollHeight;
@@ -1483,5 +1490,7 @@
         };
 
     </script>
+    <!-- FIX: load chat-notes.js SETELAH firebase module siap -->
+    <script src="chat-notes.js" defer></script>
 </body>
 </html>
