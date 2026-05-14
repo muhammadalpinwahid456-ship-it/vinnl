@@ -729,7 +729,6 @@
         };
 
         // ===== MESSAGES =====
-        let _renderDebounceTimer = null;
 
         function loadMessages() {
             if (!selectedUserId || !currentUser) return;
@@ -737,13 +736,10 @@
             const chatId = generateChatId(currentUser.uid, selectedUserId);
             const messagesRef = ref(database, `chats/${chatId}/messages`);
 
+            // ✅ FIX: Langsung render tanpa debounce — debounce menyebabkan
+            // snapshot stale dipakai karena closure tidak update reference
             messagesUnsubscribe = onValue(messagesRef, (snapshot) => {
-                // Debounce: tunggu 80ms setelah trigger terakhir baru render
-                // Ini mencegah race condition saat markAsRead trigger multiple onValue
-                clearTimeout(_renderDebounceTimer);
-                _renderDebounceTimer = setTimeout(() => {
-                    renderMessages(snapshot);
-                }, 80);
+                renderMessages(snapshot);
             });
         }
 
