@@ -843,14 +843,6 @@
             if (msgInput) { msgInput.value = ''; msgInput.focus(); }
         };
 
-        // Bersihkan banner saat menutup chat
-        const _origCloseChat = window.closeChat;
-        window.closeChat = function() {
-            const banner = document.getElementById('noteReplyBanner');
-            if (banner) banner.remove();
-            if (_origCloseChat) _origCloseChat();
-        };
-
         window.sendMessage = async function() {
             const messageInput = document.getElementById('messageInput');
             const text = messageInput.value.trim();
@@ -864,9 +856,7 @@
                 senderName: currentUserName,
                 text: text,
                 timestamp: Date.now(),
-                isRead: false,
-                isDeleted: false,
-                deletedFor: {}
+                isRead: false
             };
 
             try {
@@ -899,21 +889,28 @@
 
         function markAsRead(chatId) {
             get(ref(database, `chats/${chatId}/messages`)).then((snapshot) => {
-                if (snapshot.exists()) {
-                    snapshot.forEach((child) => {
-                        const msg = child.val();
-                        if (msg.senderId !== currentUser.uid && !msg.isRead) {
-                            update(ref(database, `chats/${chatId}/messages/${child.key}`), { isRead: true });
-                        }
-                    });
+                if (!snapshot.exists()) return;
+                const updates = {};
+                snapshot.forEach((child) => {
+                    const msg = child.val();
+                    if (msg.senderId !== currentUser.uid && !msg.isRead) {
+                        updates[`chats/${chatId}/messages/${child.key}/isRead`] = true;
+                    }
+                });
+                // Batch update semua sekaligus — satu write, satu trigger onValue
+                if (Object.keys(updates).length > 0) {
+                    update(ref(database), updates).catch(err => console.error('markAsRead error:', err));
                 }
-            });
+            }).catch(err => console.error('markAsRead get error:', err));
         }
 
         window.closeChat = function() {
             selectedUserId = null;
             if (messagesUnsubscribe) { messagesUnsubscribe(); messagesUnsubscribe = null; }
             cancelMediaPreview();
+            // Hapus banner "Membalas catatan" jika ada
+            const banner = document.getElementById('noteReplyBanner');
+            if (banner) banner.remove();
             document.getElementById('chatWindow').style.display = 'none';
             document.getElementById('welcomeMessage').style.display = 'flex';
             document.getElementById('messageInput').value = '';
