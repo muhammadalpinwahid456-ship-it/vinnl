@@ -6,6 +6,7 @@
     <title>ALVIN Chat</title>
     <link rel="stylesheet" href="chat.style.css">
     <link rel="stylesheet" href="chat-notes.css">
+    <script src="chat-notes.js"></script>
 </head>
 <body>
     <!-- AUTH CHECK -->
@@ -188,7 +189,17 @@
             </div>
 
             <div class="form-group">
-                <label>🎵 Link YouTube (hanya audio yang diputar)</label>
+                <label>🎵 Judul Lagu <span style="color:#8b949e;font-weight:400">(untuk cari lirik)</span></label>
+                <input type="text" id="noteSongTitle" maxlength="80" placeholder="Contoh: Blinding Lights">
+            </div>
+
+            <div class="form-group">
+                <label>🎤 Nama Artis <span style="color:#8b949e;font-weight:400">(opsional)</span></label>
+                <input type="text" id="noteArtistName" maxlength="60" placeholder="Contoh: The Weeknd">
+            </div>
+
+            <div class="form-group">
+                <label>🔗 Link YouTube (hanya audio yang diputar)</label>
                 <input type="text" id="noteYoutubeInput" placeholder="https://www.youtube.com/watch?v=...">
             </div>
 
@@ -218,8 +229,22 @@
                     <div class="note-viewer-time" id="viewerTime"></div>
                 </div>
             </div>
-            <div class="note-viewer-text" id="viewerText"></div>
 
+            <!-- SONG INFO BOX - NEW -->
+            <div class="note-song-info-box">
+                <div class="note-song-icon">🎵</div>
+                <p class="note-song-title" id="viewerSongTitle">Loading...</p>
+                <p class="note-song-artist" id="viewerArtistName">Unknown</p>
+                <div class="note-song-duration">
+                    <span id="viewerCurrentTime">0:00</span>
+                    <span id="viewerDuration">0:00</span>
+                </div>
+            </div>
+            <!-- LYRICS CONTAINER - NEW -->
+            <div class="note-lyrics-container" id="noteViewerLyrics">
+                <p class="no-lyrics-message">⏳ Memuat lirik...</p>
+            </div>
+            <div class="note-viewer-text" id="viewerText"></div>
             <!-- Audio Only Player -->
             <div id="viewerYtContainer" class="viewer-audio-container" style="display:none;">
                 <div class="audio-player-ui">
@@ -234,7 +259,6 @@
                     <iframe id="viewerYtIframe" width="1" height="1" frameborder="0" allow="autoplay; encrypted-media" style="position:absolute;opacity:0;pointer-events:none;"></iframe>
                 </div>
             </div>
-
             <div class="note-viewer-actions">
                 <button class="btn-like-note" id="btnLikeNote" onclick="toggleLikeNote()">❤️ <span id="likeCount">0</span> Suka</button>
                 <button class="btn-reply-note" onclick="focusReply()">💬 Balas</button>
@@ -282,6 +306,13 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const database = getDatabase(app);
+
+        // Expose Firebase ke window agar chat-notes.js bisa gunakan
+        window._database = database;
+        window._dbRef = ref;
+        window._dbGet = get;
+        window._dbSet = set;
+        window._dbPush = push;
 
         // ===== STATE =====
         let currentUser = null;
@@ -354,6 +385,8 @@
             if (hours < 24) return `${hours}h`;
             return `${days}d`;
         }
+        // Expose agar chat-notes.js dapat menggunakan
+        window._formatTimeAgo = formatTimeAgo;
 
         function formatTimeLeft(expiresAt) {
             if (!expiresAt) return '';
@@ -545,12 +578,19 @@
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 currentUser = user;
+                window._currentUserId = user.uid; // expose untuk chat-notes.js
+                // ✅ FIX #1: Expose ke global SEGERA setelah auth ready
+                // agar openNoteViewer() dan fitur notes/DM tidak crash
+                window.currentUser = currentUser;
+                window.database    = database;
                 document.getElementById('authCheck').style.display = 'none';
                 document.getElementById('chatContainer').style.display = 'flex';
                 setupMyPresence(user.uid);
                 loadCurrentUser();
                 loadAllUsers();
             } else {
+                window._currentUserId = null;
+                window.currentUser = null;
                 document.getElementById('authCheck').style.display = 'flex';
                 document.getElementById('chatContainer').style.display = 'none';
             }
@@ -563,6 +603,8 @@
                     const userData = snapshot.val();
                     currentUserName = userData.fullname || userData.email.split('@')[0];
                     currentUserPhoto = userData.photoURL || 'https://via.placeholder.com/52';
+                    window._currentUserName = currentUserName;
+                    window._currentUserPhoto = currentUserPhoto;
                     document.getElementById('currentUserName').textContent = currentUserName;
                     document.getElementById('noteMyName').textContent = currentUserName.split(' ')[0]; // FIX: show real name
                     if (userData.photoURL) {
@@ -571,6 +613,8 @@
                     }
                 } else {
                     currentUserName = currentUser.displayName || currentUser.email.split('@')[0];
+                    window._currentUserName = currentUserName;
+                    window._currentUserPhoto = currentUserPhoto;
                     document.getElementById('currentUserName').textContent = currentUserName;
                     document.getElementById('noteMyName').textContent = currentUserName.split(' ')[0];
                     set(userRef, {
@@ -653,8 +697,15 @@
                 const el = document.createElement('div');
                 el.className = 'user-item';
                 el.setAttribute('data-user-id', user.uid);
-                el.onclick = () => selectUser(user.uid, user.name, user.photoURL);
                 el.innerHTML = buildUserItemHTML(user);
+                // Fix: gunakan addEventListener agar tidak tertimpa, dan tambah ke semua child
+                const _uid = user.uid, _name = user.name, _photo = user.photoURL;
+                el.addEventListener('click', function(e) { selectUser(_uid, _name, _photo); });
+                el.querySelectorAll('*').forEach(child => {
+                    child.style.pointerEvents = 'none';
+                });
+                el.style.pointerEvents = 'auto';
+                el.style.cursor = 'pointer';
                 usersList.appendChild(el);
                 listenUserPresence(user.uid);
             });
@@ -685,103 +736,198 @@
         };
 
         // ===== MESSAGES =====
+
         function loadMessages() {
             if (!selectedUserId || !currentUser) return;
-            if (messagesUnsubscribe) messagesUnsubscribe();
+            if (messagesUnsubscribe) {
+                messagesUnsubscribe(); // detach listener lama
+                messagesUnsubscribe = null;
+            }
             const chatId = generateChatId(currentUser.uid, selectedUserId);
             const messagesRef = ref(database, `chats/${chatId}/messages`);
-
             messagesUnsubscribe = onValue(messagesRef, (snapshot) => {
-                const messagesArea = document.getElementById('messagesArea');
-                messagesArea.innerHTML = '';
-                let messages = [];
-                if (snapshot.exists()) {
-                    snapshot.forEach((child) => messages.push({ key: child.key, ...child.val() }));
-                }
-                messages.sort((a, b) => a.timestamp - b.timestamp);
-
-                if (messages.length === 0) {
-                    messagesArea.innerHTML = '<p class="no-messages" style="text-align:center;color:#999;padding:2rem;">Belum ada pesan. Mulai percakapan!</p>';
-                    return;
-                }
-
-                messages.forEach(msg => {
-                    if (msg.deletedFor && msg.deletedFor[currentUser.uid]) return;
-                    if (msg.isUnsent && msg.senderId !== currentUser.uid) return;
-                    if (msg.isDeleted && msg.senderId !== currentUser.uid) return;
-
-                    const el = document.createElement('div');
-                    el.className = `message ${msg.senderId === currentUser.uid ? 'sent' : 'received'}`;
-                    el.setAttribute('data-message-id', msg.key);
-
-                    let contentHtml = '';
-                    if (msg.isDeleted) {
-                        contentHtml = '<p style="font-style:italic;color:#999;">🗑️ Pesan telah dihapus</p>';
-                    } else if (msg.isUnsent) {
-                        contentHtml = '<p style="font-style:italic;color:#aaa;font-size:0.88rem;">↩️ Kamu membatalkan pengiriman pesan ini</p>';
-                    } else if (msg.mediaUrl && msg.mediaType) {
-                        if (msg.mediaType === 'image') {
-                            contentHtml = `<div class="media-message" onclick="openMediaModal('${msg.mediaUrl}','image')"><img src="${msg.mediaUrl}" alt="image" style="max-width:250px;border-radius:8px;cursor:pointer;"></div>`;
-                        } else if (msg.mediaType === 'video') {
-                            contentHtml = `<div class="media-message" onclick="openMediaModal('${msg.mediaUrl}','video')"><video src="${msg.mediaUrl}" style="max-width:250px;border-radius:8px;cursor:pointer;" onmouseover="this.controls=true" onmouseout="this.controls=false"></video></div>`;
-                        }
-                        if (msg.text) contentHtml += `<p style="margin-top:8px;">${escapeHtml(msg.text)}</p>`;
-                    } else {
-                        contentHtml = `<p>${escapeHtml(msg.text || '')}</p>`;
-                    }
-
-                    const statusHtml = msg.senderId === currentUser.uid
-                        ? `<span class="message-status"><span class="tick ${msg.isRead ? 'read' : ''}">✔✔</span></span>`
-                        : '';
-
-                    el.innerHTML = `
-                        <div class="message-bubble"
-                            data-message-key="${msg.key}"
-                            data-sender-id="${msg.senderId}"
-                            data-is-unsent="${msg.isUnsent ? 'true' : 'false'}"
-                            oncontextmenu="showMessageMenu(event, '${msg.key}')">
-                            ${contentHtml}
-                            <span class="message-time">${formatTime(msg.timestamp)} ${statusHtml}</span>
-                        </div>`;
-                    messagesArea.appendChild(el);
-                });
-                messagesArea.scrollTop = messagesArea.scrollHeight;
+                renderMessages(snapshot);
             });
         }
 
+        function renderMessages(snapshot) {
+            const messagesArea = document.getElementById('messagesArea');
+            if (!messagesArea) return;
+            messagesArea.innerHTML = '';
+            let messages = [];
+            if (snapshot.exists()) {
+                snapshot.forEach((child) => messages.push({ key: child.key, ...child.val() }));
+            }
+            messages.sort((a, b) => a.timestamp - b.timestamp);
+
+            if (messages.length === 0) {
+                messagesArea.innerHTML = '<p class="no-messages" style="text-align:center;color:#999;padding:2rem;">Belum ada pesan. Mulai percakapan!</p>';
+                return;
+            }
+
+            messages.forEach(msg => {
+                if (msg.deletedFor && msg.deletedFor[currentUser.uid]) return;
+                if (msg.isUnsent && msg.senderId !== currentUser.uid) return;
+                if (msg.isDeleted && msg.senderId !== currentUser.uid) return;
+
+                const el = document.createElement('div');
+                el.className = `message ${msg.senderId === currentUser.uid ? 'sent' : 'received'}`;
+                el.setAttribute('data-message-id', msg.key);
+
+                let contentHtml = '';
+                if (msg.isDeleted) {
+                    contentHtml = '<p style="font-style:italic;color:#999;">🗑️ Pesan telah dihapus</p>';
+                } else if (msg.isUnsent) {
+                    contentHtml = '<p style="font-style:italic;color:#aaa;font-size:0.88rem;">↩️ Kamu membatalkan pengiriman pesan ini</p>';
+                } else if (msg.mediaUrl && msg.mediaType) {
+                    if (msg.mediaType === 'image') {
+                        contentHtml = `<div class="media-message" onclick="openMediaModal('${msg.mediaUrl}','image')"><img src="${msg.mediaUrl}" alt="image" style="max-width:250px;border-radius:8px;cursor:pointer;"></div>`;
+                    } else if (msg.mediaType === 'video') {
+                        contentHtml = `<div class="media-message" onclick="openMediaModal('${msg.mediaUrl}','video')"><video src="${msg.mediaUrl}" style="max-width:250px;border-radius:8px;cursor:pointer;" onmouseover="this.controls=true" onmouseout="this.controls=false"></video></div>`;
+                    }
+                    if (msg.text) contentHtml += `<p style="margin-top:8px;">${escapeHtml(msg.text)}</p>`;
+                } else {
+                    contentHtml = `<p>${escapeHtml(msg.text || '')}</p>`;
+                }
+
+                const statusHtml = msg.senderId === currentUser.uid
+                    ? `<span class="message-status"><span class="tick ${msg.isRead ? 'read' : ''}">✔✔</span></span>`
+                    : '';
+
+                el.innerHTML = `
+                    <div class="message-bubble"
+                        data-message-key="${msg.key}"
+                        data-sender-id="${msg.senderId}"
+                        data-is-unsent="${msg.isUnsent ? 'true' : 'false'}"
+                        oncontextmenu="showMessageMenu(event, '${msg.key}')">
+                        ${contentHtml}
+                        <span class="message-time">${formatTime(msg.timestamp)} ${statusHtml}</span>
+                    </div>`;
+                messagesArea.appendChild(el);
+            });
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+
+        // ===== BALAS NOTE VIA DM =====
+        window.openDMWithNote = function(userId, note) {
+            const user = allUsers.find(u => u.uid === userId);
+            const userName = user ? user.name     : (note.userName  || 'User');
+            const photoURL = user ? user.photoURL : (note.userPhoto || 'https://via.placeholder.com/40');
+
+            // Pindah ke tab Pesan & buka chat
+            switchSidebarTab('pesan');
+            selectUser(userId, userName, photoURL);
+
+            // Highlight sidebar
+            document.querySelectorAll('.user-item').forEach(el => {
+                el.classList.toggle('active', el.getAttribute('data-user-id') === userId);
+            });
+
+            // Tampilkan banner "membalas catatan" di atas input
+            showNoteReplyBanner(note);
+
+            // Sisipkan teks awal di input agar mudah dihapus / diganti
+            const msgInput = document.getElementById('messageInput');
+            if (msgInput) {
+                msgInput.value = '';
+                msgInput.focus();
+            }
+        };
+
+        function showNoteReplyBanner(note) {
+            const old = document.getElementById('noteReplyBanner');
+            if (old) old.remove();
+            const inputArea = document.querySelector('.input-area');
+            if (!inputArea) return;
+            const banner = document.createElement('div');
+            banner.id = 'noteReplyBanner';
+            banner.className = 'note-reply-banner';
+            const label = note.youtubeId
+                ? `🎵 ${escapeHtml(note.songTitle || note.text || 'Catatan musik')}`
+                : `📝 ${escapeHtml(note.text || 'Catatan')}`;
+            banner.innerHTML = `
+                <div class="note-reply-banner-inner">
+                    <div class="note-reply-banner-text">
+                        <span class="note-reply-banner-label">Membalas catatan</span>
+                        <span class="note-reply-banner-content">${label}</span>
+                    </div>
+                    <button class="note-reply-banner-close" onclick="dismissNoteReplyBanner()" title="Batal balas">✕</button>
+                </div>`;
+            inputArea.parentNode.insertBefore(banner, inputArea);
+        }
+
+        window.dismissNoteReplyBanner = function() {
+            const banner = document.getElementById('noteReplyBanner');
+            if (banner) banner.remove();
+            const msgInput = document.getElementById('messageInput');
+            if (msgInput) { msgInput.value = ''; msgInput.focus(); }
+        };
+
         window.sendMessage = async function() {
             const messageInput = document.getElementById('messageInput');
-            const text = messageInput.value.trim();
+            const text = messageInput ? messageInput.value.trim() : '';
+            // ✅ FIX #2 & #3: Jangan kirim jika kosong
             if (!selectedMediaFile && !text) return;
             if (!selectedUserId || !currentUser) { alert('❌ Error: User tidak terpilih'); return; }
 
-            const chatId = generateChatId(currentUser.uid, selectedUserId);
-            const messagesRef = ref(database, `chats/${chatId}/messages`);
-            const messageData = {
-                senderId: currentUser.uid,
-                senderName: currentUserName,
-                text: text,
-                timestamp: Date.now(),
-                isRead: false,
-                isDeleted: false,
-                deletedFor: {}
-            };
+            // Nonaktifkan tombol kirim sementara untuk cegah double-send
+            const sendBtn = document.querySelector('.btn-send');
+            if (sendBtn) sendBtn.disabled = true;
 
             try {
+                // ✅ FIX #3: Gunakan null (bukan "") agar tidak di-reject Firebase rules
+                let mediaUrl  = null;
+                let mediaType = null;
+
                 if (selectedMediaFile) {
                     document.getElementById('uploadProgress').style.display = 'flex';
                     const uploadResult = await uploadToCloudinary(selectedMediaFile);
-                    messageData.mediaUrl = uploadResult.url;
-                    messageData.mediaType = uploadResult.type;
+                    mediaUrl  = uploadResult.url;
+                    mediaType = uploadResult.type;
                     document.getElementById('uploadProgress').style.display = 'none';
                 }
+
+                // ✅ FIX #3: Bangun objek pesan — JANGAN sertakan field opsional jika nilainya null
+                const messageData = {
+                    senderId:   currentUser.uid,
+                    senderName: currentUserName || currentUser.displayName || 'Unknown',
+                    timestamp:  Date.now(),
+                };
+                if (text)      messageData.text      = text;
+                if (mediaUrl)  messageData.mediaUrl  = mediaUrl;
+                if (mediaType) messageData.mediaType = mediaType;
+
+                const chatId = generateChatId(currentUser.uid, selectedUserId);
+                const messagesRef = ref(database, `chats/${chatId}/messages`);
                 await push(messagesRef, messageData);
-                messageInput.value = '';
-                messageInput.focus();
+
+                // Update lastMessage agar listener penerima ter-trigger
+                const lastMsgData = {
+                    text: text || (mediaType === 'image' ? '📷 Foto' : '🎥 Video'),
+                    senderId: currentUser.uid,
+                    timestamp: Date.now()
+                };
+                await update(ref(database, `chats/${chatId}`), { lastMessage: lastMsgData });
+
+                if (messageInput) { messageInput.value = ''; messageInput.focus(); }
                 cancelMediaPreview();
+                // Hapus banner "Membalas catatan" setelah pesan terkirim
+                const banner = document.getElementById('noteReplyBanner');
+                if (banner) banner.remove();
+
             } catch (error) {
-                alert('❌ Gagal mengirim pesan: ' + error.message);
+                console.error('❌ sendMessage error:', error.code, error.message);
                 document.getElementById('uploadProgress').style.display = 'none';
+                // ✅ FIX #2: Tampilkan error spesifik ke user
+                if (error.code === 'PERMISSION_DENIED') {
+                    alert('⚠️ Tidak punya izin mengirim pesan. Coba login ulang.');
+                } else if (error.message && error.message.toLowerCase().includes('network')) {
+                    alert('⚠️ Koneksi bermasalah. Periksa internet kamu.');
+                } else {
+                    alert('❌ Gagal mengirim pesan: ' + (error.code || error.message || 'Unknown error'));
+                }
+            } finally {
+                if (sendBtn) sendBtn.disabled = false;
             }
         };
 
@@ -793,22 +939,33 @@
         };
 
         function markAsRead(chatId) {
-            get(ref(database, `chats/${chatId}/messages`)).then((snapshot) => {
-                if (snapshot.exists()) {
+            // Delay sedikit agar loadMessages selesai dulu register listener-nya
+            setTimeout(() => {
+                get(ref(database, `chats/${chatId}/messages`)).then((snapshot) => {
+                    if (!snapshot.exists()) return;
+                    const updates = {};
                     snapshot.forEach((child) => {
                         const msg = child.val();
-                        if (msg.senderId !== currentUser.uid && !msg.isRead) {
-                            update(ref(database, `chats/${chatId}/messages/${child.key}`), { isRead: true });
+                        if (msg.senderId !== currentUser.uid && msg.isRead !== true) {
+                            updates[`chats/${chatId}/messages/${child.key}/isRead`] = true;
                         }
                     });
-                }
-            });
+                    // Satu update() dari root = satu trigger onValue, bukan satu per pesan
+                    if (Object.keys(updates).length > 0) {
+                        update(ref(database), updates)
+                            .catch(err => console.error('markAsRead error:', err));
+                    }
+                }).catch(err => console.error('markAsRead get error:', err));
+            }, 300);
         }
 
         window.closeChat = function() {
             selectedUserId = null;
             if (messagesUnsubscribe) { messagesUnsubscribe(); messagesUnsubscribe = null; }
             cancelMediaPreview();
+            // Hapus banner "Membalas catatan" jika ada
+            const banner = document.getElementById('noteReplyBanner');
+            if (banner) banner.remove();
             document.getElementById('chatWindow').style.display = 'none';
             document.getElementById('welcomeMessage').style.display = 'flex';
             document.getElementById('messageInput').value = '';
@@ -831,8 +988,15 @@
                 const el = document.createElement('div');
                 el.className = 'user-item';
                 el.setAttribute('data-user-id', user.uid);
-                el.onclick = () => selectUser(user.uid, user.name, user.photoURL);
                 el.innerHTML = buildUserItemHTML(user);
+                // Fix: gunakan addEventListener agar tidak tertimpa, dan tambah ke semua child
+                const _uid = user.uid, _name = user.name, _photo = user.photoURL;
+                el.addEventListener('click', function(e) { selectUser(_uid, _name, _photo); });
+                el.querySelectorAll('*').forEach(child => {
+                    child.style.pointerEvents = 'none';
+                });
+                el.style.pointerEvents = 'auto';
+                el.style.cursor = 'pointer';
                 usersList.appendChild(el);
                 listenUserPresence(user.uid);
             });
@@ -975,6 +1139,8 @@
                     document.getElementById('noteTextInput').value = data.text || '';
                     document.getElementById('noteCharCount').textContent = `${(data.text||'').length}/60`;
                     document.getElementById('noteYoutubeInput').value = data.youtubeUrl || '';
+                    document.getElementById('noteSongTitle').value = data.songTitle || '';
+                    document.getElementById('noteArtistName').value = data.artistName || '';
                     if (data.youtubeUrl) previewYoutube(data.youtubeUrl);
                 }
             });
@@ -1000,6 +1166,8 @@
             if (!currentUser) return;
             const text = document.getElementById('noteTextInput').value.trim();
             const youtubeUrl = document.getElementById('noteYoutubeInput').value.trim();
+            const songTitleInput = document.getElementById('noteSongTitle').value.trim();
+            const artistNameInput = document.getElementById('noteArtistName').value.trim();
             if (!text && !youtubeUrl) { alert('⚠️ Isi catatan atau tambahkan lagu YouTube!'); return; }
 
             const videoId = extractYoutubeId(youtubeUrl);
@@ -1008,8 +1176,9 @@
                 text,
                 youtubeUrl,
                 youtubeId: videoId || null,
-                songTitle: text || 'Untitled Song',
-                artistName: 'Unknown Artist',
+                // Gunakan input user, fallback ke text catatan
+                songTitle: songTitleInput || text || 'Untitled Song',
+                artistName: artistNameInput || 'Unknown Artist',
                 userId: currentUser.uid,
                 userName: currentUserName,
                 userPhoto: currentUserPhoto,
@@ -1172,46 +1341,51 @@
             });
         }
 
-        // FIX: openNoteViewer fully rewritten — removed orphaned code & instagramNoteViewer reference
+        // FIX: openNoteViewer — gunakan instagramNoteViewer untuk modal Instagram-style dengan lirik
         window.openNoteViewer = function(userId) {
             get(ref(database, `notes/${userId}`)).then(snap => {
                 if (!snap.exists()) { alert('Catatan tidak ditemukan atau sudah dihapus.'); return; }
                 const note = snap.val();
-
-                // FIX: set viewingNoteUserId so like/reply work correctly
                 viewingNoteUserId = userId;
-                audioPlaying = false;
-
-                document.getElementById('viewerAvatar').src = note.userPhoto || 'https://via.placeholder.com/40';
-                document.getElementById('viewerName').textContent = note.userName || 'User';
-                document.getElementById('viewerTime').textContent = formatTimeAgo(note.updatedAt);
-                document.getElementById('viewerText').textContent = note.text || '';
-
-                const ytContainer = document.getElementById('viewerYtContainer');
-                const iframe = document.getElementById('viewerYtIframe');
-                if (note.youtubeId) {
-                    iframe.src = `https://www.youtube.com/embed/${note.youtubeId}?autoplay=0&controls=0&enablejsapi=1`;
-                    document.getElementById('audioSongName').textContent = note.text || 'Lagu dari ' + (note.userName || 'teman');
-                    document.getElementById('audioPlayBtn').textContent = '▶';
-                    document.getElementById('audioMusicIcon').classList.remove('playing');
-                    ytContainer.style.display = 'block';
+                // Gunakan modal baru Instagram-style
+                if (window.instagramNoteViewer) {
+                    window.instagramNoteViewer.open(userId, note);
                 } else {
-                    iframe.src = '';
-                    ytContainer.style.display = 'none';
+                    // Fallback ke modal lama jika instagramNoteViewer tidak tersedia
+                    _openNoteViewerLegacy(userId, note);
                 }
-
-                const likes = note.likes || {};
-                const likeCount = Object.keys(likes).length;
-                const liked = !!likes[currentUser.uid];
-                const likeBtn = document.getElementById('btnLikeNote');
-                likeBtn.className = `btn-like-note${liked ? ' liked' : ''}`;
-                likeBtn.innerHTML = `${liked ? '❤️' : '🤍'} <span id="likeCount">${likeCount}</span> Suka`;
-
-                renderReplies(note.replies || {});
-                document.getElementById('replyInput').value = '';
-                document.getElementById('noteViewerModal').style.display = 'flex';
             }).catch(err => { console.error('Error opening note viewer:', err); alert('❌ Gagal membuka catatan.'); });
         };
+
+        // Modal lama (fallback)
+        function _openNoteViewerLegacy(userId, note) {
+            audioPlaying = false;
+            document.getElementById('viewerAvatar').src = note.userPhoto || 'https://via.placeholder.com/40';
+            document.getElementById('viewerName').textContent = note.userName || 'User';
+            document.getElementById('viewerTime').textContent = formatTimeAgo(note.updatedAt);
+            document.getElementById('viewerText').textContent = note.text || '';
+            const ytContainer = document.getElementById('viewerYtContainer');
+            const iframe = document.getElementById('viewerYtIframe');
+            if (note.youtubeId) {
+                iframe.src = `https://www.youtube.com/embed/${note.youtubeId}?autoplay=0&controls=0&enablejsapi=1`;
+                document.getElementById('audioSongName').textContent = note.text || 'Lagu dari ' + (note.userName || 'teman');
+                document.getElementById('audioPlayBtn').textContent = '▶';
+                document.getElementById('audioMusicIcon').classList.remove('playing');
+                ytContainer.style.display = 'block';
+            } else {
+                iframe.src = '';
+                ytContainer.style.display = 'none';
+            }
+            const likes = note.likes || {};
+            const likeCount = Object.keys(likes).length;
+            const liked = !!likes[currentUser.uid];
+            const likeBtn = document.getElementById('btnLikeNote');
+            likeBtn.className = `btn-like-note${liked ? ' liked' : ''}`;
+            likeBtn.innerHTML = `${liked ? '❤️' : '🤍'} <span id="likeCount">${likeCount}</span> Suka`;
+            renderReplies(note.replies || {});
+            document.getElementById('replyInput').value = '';
+            document.getElementById('noteViewerModal').style.display = 'flex';
+        }
 
         window.closeNoteViewer = function() {
             document.getElementById('noteViewerModal').style.display = 'none';
