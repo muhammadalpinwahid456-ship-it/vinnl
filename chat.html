@@ -729,7 +729,6 @@
         };
 
         // ===== MESSAGES =====
-        let _renderDebounceTimer = null;
 
         function loadMessages() {
             if (!selectedUserId || !currentUser) return;
@@ -738,12 +737,9 @@
             const messagesRef = ref(database, `chats/${chatId}/messages`);
 
             messagesUnsubscribe = onValue(messagesRef, (snapshot) => {
-                // Debounce: tunggu 80ms setelah trigger terakhir baru render
-                // Ini mencegah race condition saat markAsRead trigger multiple onValue
-                clearTimeout(_renderDebounceTimer);
-                _renderDebounceTimer = setTimeout(() => {
-                    renderMessages(snapshot);
-                }, 80);
+                // FIX: Hapus debounce — debounce 80ms menyebabkan pesan tidak muncul
+                // saat pengirim baru kirim pesan (onValue trigger langsung tapi render ditunda)
+                renderMessages(snapshot);
             });
         }
 
@@ -764,7 +760,9 @@
 
             messages.forEach(msg => {
                 if (msg.deletedFor && msg.deletedFor[currentUser.uid]) return;
+                // FIX: isUnsent hanya disembunyikan dari penerima, pengirim tetap lihat sebagai "pesan dibatalkan"
                 if (msg.isUnsent && msg.senderId !== currentUser.uid) return;
+                // FIX: isDeleted hanya disembunyikan dari penerima
                 if (msg.isDeleted && msg.senderId !== currentUser.uid) return;
 
                 const el = document.createElement('div');
@@ -863,7 +861,6 @@
         window.sendMessage = async function() {
             const messageInput = document.getElementById('messageInput');
             const text = messageInput ? messageInput.value.trim() : '';
-            // ✅ FIX #2 & #3: Jangan kirim jika kosong
             if (!selectedMediaFile && !text) return;
             if (!selectedUserId || !currentUser) { alert('❌ Error: User tidak terpilih'); return; }
 
@@ -871,8 +868,10 @@
             const sendBtn = document.querySelector('.btn-send');
             if (sendBtn) sendBtn.disabled = true;
 
+            // FIX: Simpan teks sebelum dihapus, hapus input HANYA setelah push berhasil
+            const textToSend = text;
+
             try {
-                // ✅ FIX #3: Gunakan null (bukan "") agar tidak di-reject Firebase rules
                 let mediaUrl  = null;
                 let mediaType = null;
 
@@ -884,19 +883,21 @@
                     document.getElementById('uploadProgress').style.display = 'none';
                 }
 
-                // ✅ FIX #3: Bangun objek pesan — JANGAN sertakan field opsional jika nilainya null
+                // Bangun objek pesan — JANGAN sertakan field opsional jika nilainya null/kosong
                 const messageData = {
                     senderId:   currentUser.uid,
                     senderName: currentUserName || currentUser.displayName || 'Unknown',
                     timestamp:  Date.now(),
                     isRead:     false,
                 };
-                if (text)      messageData.text      = text;
-                if (mediaUrl)  messageData.mediaUrl  = mediaUrl;
-                if (mediaType) messageData.mediaType = mediaType;
+                if (textToSend) messageData.text      = textToSend;
+                if (mediaUrl)   messageData.mediaUrl  = mediaUrl;
+                if (mediaType)  messageData.mediaType = mediaType;
 
                 const chatId = generateChatId(currentUser.uid, selectedUserId);
                 const messagesRef = ref(database, `chats/${chatId}/messages`);
+
+                // FIX: Hapus input SETELAH push berhasil, bukan sebelumnya
                 await push(messagesRef, messageData);
 
                 if (messageInput) { messageInput.value = ''; messageInput.focus(); }
@@ -908,7 +909,6 @@
             } catch (error) {
                 console.error('❌ sendMessage error:', error.code, error.message);
                 document.getElementById('uploadProgress').style.display = 'none';
-                // ✅ FIX #2: Tampilkan error spesifik ke user
                 if (error.code === 'PERMISSION_DENIED') {
                     alert('⚠️ Tidak punya izin mengirim pesan. Coba login ulang.');
                 } else if (error.message && error.message.toLowerCase().includes('network')) {
@@ -1059,7 +1059,8 @@
                 if (snapshot.exists()) {
                     const deletedFor = snapshot.val().deletedFor || {};
                     deletedFor[currentUser.uid] = true;
-                    update(messageRef, { deletedFor }).then(() => { closeMessageMenu(); loadMessages(); });
+                    // FIX: Jangan panggil loadMessages() manual — onValue listener sudah handle re-render otomatis
+                    update(messageRef, { deletedFor }).then(() => { closeMessageMenu(); });
                 }
             });
         };
@@ -1076,7 +1077,9 @@
                         closeMessageMenu();
                         return;
                     }
-                    update(messageRef, { isUnsent: true, text: '', mediaUrl: null, mediaType: null })
+                    // FIX: Hanya set isUnsent=true, JANGAN kirim null untuk field lain
+                    // karena Firebase rules tidak mengizinkan null pada field string
+                    update(messageRef, { isUnsent: true })
                         .then(() => closeMessageMenu());
                 }
             });
