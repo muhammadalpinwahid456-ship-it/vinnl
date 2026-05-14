@@ -859,34 +859,49 @@
         window.sendMessage = async function() {
             const messageInput = document.getElementById('messageInput');
             const text = messageInput ? messageInput.value.trim() : '';
-            // ✅ FIX #2 & #3: Jangan kirim jika kosong
             if (!selectedMediaFile && !text) return;
             if (!selectedUserId || !currentUser) { alert('❌ Error: User tidak terpilih'); return; }
 
-            // Nonaktifkan tombol kirim sementara untuk cegah double-send
             const sendBtn = document.querySelector('.btn-send');
             if (sendBtn) sendBtn.disabled = true;
 
+            // Simpan nilai input sebelum dikosongkan agar bisa di-restore kalau gagal
+            const originalText = text;
+
             try {
-                // ✅ FIX #3: Gunakan null (bukan "") agar tidak di-reject Firebase rules
                 let mediaUrl  = null;
                 let mediaType = null;
 
                 if (selectedMediaFile) {
                     document.getElementById('uploadProgress').style.display = 'flex';
-                    const uploadResult = await uploadToCloudinary(selectedMediaFile);
-                    mediaUrl  = uploadResult.url;
-                    mediaType = uploadResult.type;
+                    document.getElementById('progressFill').style.width = '0%';
+                    document.getElementById('progressText').textContent = 'Mengupload... 0%';
+                    try {
+                        const uploadResult = await uploadToCloudinary(selectedMediaFile);
+                        mediaUrl  = uploadResult.url;
+                        mediaType = uploadResult.type;
+                    } catch (uploadErr) {
+                        document.getElementById('uploadProgress').style.display = 'none';
+                        console.error('Upload error:', uploadErr);
+                        alert('❌ Gagal upload media. Pastikan Cloudinary sudah dikonfigurasi dengan benar.\n\nDetail: ' + uploadErr.message);
+                        return;
+                    }
                     document.getElementById('uploadProgress').style.display = 'none';
                 }
 
-                // ✅ FIX #3: Bangun objek pesan — JANGAN sertakan field opsional jika nilainya null
+                // Bangun objek pesan — hanya sertakan field yang ada nilainya
                 const messageData = {
                     senderId:   currentUser.uid,
                     senderName: currentUserName || currentUser.displayName || 'Unknown',
                     timestamp:  Date.now(),
                 };
-                if (text)      messageData.text      = text;
+                // text wajib ada (string) jika dikirim — jika tidak ada teks tapi ada media, kirim string kosong
+                if (text) {
+                    messageData.text = text;
+                } else if (!mediaUrl) {
+                    return; // tidak ada konten sama sekali
+                }
+                // Jika ada media, text kosong tidak disertakan (valid karena ada mediaUrl)
                 if (mediaUrl)  messageData.mediaUrl  = mediaUrl;
                 if (mediaType) messageData.mediaType = mediaType;
 
@@ -896,16 +911,16 @@
 
                 if (messageInput) { messageInput.value = ''; messageInput.focus(); }
                 cancelMediaPreview();
-                // Hapus banner "Membalas catatan" setelah pesan terkirim
                 const banner = document.getElementById('noteReplyBanner');
                 if (banner) banner.remove();
 
             } catch (error) {
-                console.error('❌ sendMessage error:', error.code, error.message);
+                console.error('❌ sendMessage error:', error.code, error.message, error);
                 document.getElementById('uploadProgress').style.display = 'none';
-                // ✅ FIX #2: Tampilkan error spesifik ke user
+                // Kembalikan teks ke input agar user tidak kehilangan pesannya
+                if (messageInput && originalText) messageInput.value = originalText;
                 if (error.code === 'PERMISSION_DENIED') {
-                    alert('⚠️ Tidak punya izin mengirim pesan. Coba login ulang.');
+                    alert('⚠️ Tidak punya izin mengirim pesan.\n\nKemungkinan penyebab:\n• Session login sudah habis → coba logout & login ulang\n• Firebase rules memblokir → update database-rules.json');
                 } else if (error.message && error.message.toLowerCase().includes('network')) {
                     alert('⚠️ Koneksi bermasalah. Periksa internet kamu.');
                 } else {
