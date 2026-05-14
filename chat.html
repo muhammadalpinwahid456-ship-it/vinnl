@@ -6,6 +6,7 @@
     <title>ALVIN Chat</title>
     <link rel="stylesheet" href="chat.style.css">
     <link rel="stylesheet" href="chat-notes.css">
+    <script src="chat-notes.js"></script>
 </head>
 <body>
     <!-- AUTH CHECK -->
@@ -188,7 +189,17 @@
             </div>
 
             <div class="form-group">
-                <label>🎵 Link YouTube (hanya audio yang diputar)</label>
+                <label>🎵 Judul Lagu <span style="color:#8b949e;font-weight:400">(untuk cari lirik)</span></label>
+                <input type="text" id="noteSongTitle" maxlength="80" placeholder="Contoh: Blinding Lights">
+            </div>
+
+            <div class="form-group">
+                <label>🎤 Nama Artis <span style="color:#8b949e;font-weight:400">(opsional)</span></label>
+                <input type="text" id="noteArtistName" maxlength="60" placeholder="Contoh: The Weeknd">
+            </div>
+
+            <div class="form-group">
+                <label>🔗 Link YouTube (hanya audio yang diputar)</label>
                 <input type="text" id="noteYoutubeInput" placeholder="https://www.youtube.com/watch?v=...">
             </div>
 
@@ -196,40 +207,6 @@
                 <div class="note-yt-audio-preview">
                     <div class="note-yt-music-icon">🎵</div>
                     <div id="noteYoutubeTitle" class="note-yt-title">Lagu terdeteksi ✓</div>
-                </div>
-            </div>
-
-            <!-- CLIP SELECTOR -->
-            <div id="clipSelectorSection" class="clip-selector-section" style="display:none;">
-                <div class="clip-selector-header">
-                    <span class="clip-selector-label">✂️ Pilih bagian lagu (maks 40 detik)</span>
-                    <span class="clip-duration-badge" id="clipDurationBadge">40s</span>
-                </div>
-                <div class="clip-song-meta">
-                    <span id="clipSongName">Memuat...</span>
-                    <span id="clipSongDuration">0:00</span>
-                </div>
-                <!-- Waveform + window -->
-                <div class="clip-waveform-outer" id="clipWaveformOuter">
-                    <canvas id="clipWaveformCanvas" class="clip-waveform-canvas" height="64"></canvas>
-                    <div class="clip-window" id="clipWindow">
-                        <div class="clip-window-handle clip-handle-left" id="clipHandleLeft"></div>
-                        <div class="clip-window-inner" id="clipWindowInner"></div>
-                        <div class="clip-window-handle clip-handle-right" id="clipHandleRight"></div>
-                    </div>
-                    <div class="clip-playhead" id="clipPlayhead" style="display:none;"></div>
-                </div>
-                <div class="clip-time-labels">
-                    <span id="clipStartLabel">Mulai: 0:00</span>
-                    <span id="clipEndLabel">Akhir: 0:40</span>
-                </div>
-                <div class="clip-preview-row">
-                    <button class="clip-btn-preview" id="clipPreviewBtn" onclick="toggleClipPreview()">▶ Preview Klip</button>
-                    <span class="clip-preview-hint">Dengarkan bagian yang dipilih</span>
-                </div>
-                <!-- hidden YT player for clip selector -->
-                <div style="position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;pointer-events:none;">
-                    <div id="clipYtPlayer"></div>
                 </div>
             </div>
 
@@ -276,35 +253,10 @@
                         <div class="audio-label">Sedang diputar</div>
                         <div class="audio-song-name" id="audioSongName">Memuat lagu...</div>
                     </div>
-                </div>
-                <!-- SEEK & CONTROLS BAR -->
-                <div class="audio-controls-bar">
-                    <div class="audio-time-row">
-                        <span class="audio-time-current" id="audioCurrentTime">0:00</span>
-                        <div class="audio-seek-wrapper">
-                            <div class="audio-seek-track" id="audioSeekTrack" onclick="seekToPosition(event)">
-                                <div class="audio-seek-fill" id="audioSeekFill"></div>
-                                <div class="audio-seek-thumb" id="audioSeekThumb"></div>
-                            </div>
-                        </div>
-                        <span class="audio-time-total" id="audioTotalTime">0:00</span>
-                    </div>
-                    <div class="audio-btn-row">
-                        <button class="audio-ctrl-btn" onclick="skipAudio(-10)" title="Mundur 10 detik">⏮ 10s</button>
-                        <button class="audio-ctrl-btn" onclick="skipAudio(-5)" title="Mundur 5 detik">↩ 5s</button>
-                        <button class="audio-ctrl-btn audio-ctrl-main" id="audioPlayBtn" onclick="toggleAudio()">▶</button>
-                        <button class="audio-ctrl-btn" onclick="skipAudio(5)" title="Maju 5 detik">5s ↪</button>
-                        <button class="audio-ctrl-btn" onclick="skipAudio(10)" title="Maju 10 detik">10s ⏭</button>
-                    </div>
-                    <div class="audio-volume-row">
-                        <span class="audio-vol-icon" id="audioVolIcon" onclick="toggleMute()">🔊</span>
-                        <input type="range" class="audio-volume-slider" id="audioVolumeSlider"
-                            min="0" max="100" value="80" oninput="setVolume(this.value)">
-                        <span class="audio-vol-label" id="audioVolLabel">80%</span>
-                    </div>
+                    <button class="audio-play-btn" id="audioPlayBtn" onclick="toggleAudio()">▶</button>
                 </div>
                 <div class="audio-iframe-hidden">
-                    <div id="viewerYtIframe"></div>
+                    <iframe id="viewerYtIframe" width="1" height="1" frameborder="0" allow="autoplay; encrypted-media" style="position:absolute;opacity:0;pointer-events:none;"></iframe>
                 </div>
             </div>
             <div class="note-viewer-actions">
@@ -354,6 +306,13 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const database = getDatabase(app);
+
+        // Expose Firebase ke window agar chat-notes.js bisa gunakan
+        window._database = database;
+        window._dbRef = ref;
+        window._dbGet = get;
+        window._dbSet = set;
+        window._dbPush = push;
 
         // ===== STATE =====
         let currentUser = null;
@@ -426,6 +385,8 @@
             if (hours < 24) return `${hours}h`;
             return `${days}d`;
         }
+        // Expose agar chat-notes.js dapat menggunakan
+        window._formatTimeAgo = formatTimeAgo;
 
         function formatTimeLeft(expiresAt) {
             if (!expiresAt) return '';
@@ -617,12 +578,14 @@
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 currentUser = user;
+                window._currentUserId = user.uid; // expose untuk chat-notes.js
                 document.getElementById('authCheck').style.display = 'none';
                 document.getElementById('chatContainer').style.display = 'flex';
                 setupMyPresence(user.uid);
                 loadCurrentUser();
                 loadAllUsers();
             } else {
+                window._currentUserId = null;
                 document.getElementById('authCheck').style.display = 'flex';
                 document.getElementById('chatContainer').style.display = 'none';
             }
@@ -635,6 +598,8 @@
                     const userData = snapshot.val();
                     currentUserName = userData.fullname || userData.email.split('@')[0];
                     currentUserPhoto = userData.photoURL || 'https://via.placeholder.com/52';
+                    window._currentUserName = currentUserName;
+                    window._currentUserPhoto = currentUserPhoto;
                     document.getElementById('currentUserName').textContent = currentUserName;
                     document.getElementById('noteMyName').textContent = currentUserName.split(' ')[0]; // FIX: show real name
                     if (userData.photoURL) {
@@ -643,6 +608,8 @@
                     }
                 } else {
                     currentUserName = currentUser.displayName || currentUser.email.split('@')[0];
+                    window._currentUserName = currentUserName;
+                    window._currentUserPhoto = currentUserPhoto;
                     document.getElementById('currentUserName').textContent = currentUserName;
                     document.getElementById('noteMyName').textContent = currentUserName.split(' ')[0];
                     set(userRef, {
@@ -1047,6 +1014,8 @@
                     document.getElementById('noteTextInput').value = data.text || '';
                     document.getElementById('noteCharCount').textContent = `${(data.text||'').length}/60`;
                     document.getElementById('noteYoutubeInput').value = data.youtubeUrl || '';
+                    document.getElementById('noteSongTitle').value = data.songTitle || '';
+                    document.getElementById('noteArtistName').value = data.artistName || '';
                     if (data.youtubeUrl) previewYoutube(data.youtubeUrl);
                 }
             });
@@ -1058,24 +1027,7 @@
         window.closeNoteModal = function() {
             document.getElementById('noteModal').style.display = 'none';
             document.getElementById('noteYoutubePreview').style.display = 'none';
-            document.getElementById('clipSelectorSection').style.display = 'none';
-            stopClipPreview();
-            clipVideoId = null; clipTotalDuration = 0; clipStartSec = 0; clipEndSec = 40;
         };
-
-        // ===== CLIP SELECTOR STATE =====
-        let clipVideoId = null;
-        let clipTotalDuration = 0;
-        let clipStartSec = 0;
-        let clipEndSec = 40;
-        let clipMaxDur = 40;
-        let clipPlayer = null;
-        let clipPlayerReady = false;
-        let clipPreviewing = false;
-        let clipPreviewInterval = null;
-        let clipDragging = null; // 'left' | 'right' | 'window'
-        let clipDragStartX = 0;
-        let clipDragStartVal = 0;
 
         window.previewYoutube = function(urlOverride) {
             const url = urlOverride || document.getElementById('noteYoutubeInput').value.trim();
@@ -1083,217 +1035,14 @@
             if (!videoId) { if (!urlOverride) alert('⚠️ Link YouTube tidak valid'); return; }
             document.getElementById('noteYoutubePreview').style.display = 'block';
             document.getElementById('noteYoutubeTitle').textContent = 'Link valid ✓';
-            // init clip selector
-            clipVideoId = videoId;
-            clipStartSec = 0;
-            clipEndSec = 40;
-            document.getElementById('clipSelectorSection').style.display = 'block';
-            document.getElementById('clipSongName').textContent = 'Memuat info lagu...';
-            initClipPlayer(videoId);
         };
-
-        function initClipPlayer(videoId) {
-            if (clipPlayer && clipPlayerReady) {
-                clipPlayer.loadVideoById(videoId);
-                clipPlayer.pauseVideo();
-                setTimeout(() => {
-                    clipTotalDuration = clipPlayer.getDuration() || 0;
-                    if (clipTotalDuration > 0) onClipDurationKnown();
-                    else setTimeout(() => { clipTotalDuration = clipPlayer.getDuration()||0; if(clipTotalDuration>0) onClipDurationKnown(); }, 1500);
-                }, 800);
-                return;
-            }
-            if (window.YT && window.YT.Player) {
-                createClipPlayer(videoId);
-            } else {
-                // API not ready yet — hook into _pendingClipInit set by main onYouTubeIframeAPIReady
-                window._pendingClipInit = () => createClipPlayer(videoId);
-            }
-        }
-
-        function createClipPlayer(videoId) {
-            clipPlayer = new YT.Player('clipYtPlayer', {
-                width: '1', height: '1',
-                videoId: videoId,
-                playerVars: { autoplay: 0, controls: 0, enablejsapi: 1 },
-                events: {
-                    onReady: function(e) {
-                        clipPlayerReady = true;
-                        e.target.setVolume(80);
-                        setTimeout(() => {
-                            clipTotalDuration = e.target.getDuration() || 0;
-                            if (clipTotalDuration > 0) onClipDurationKnown();
-                        }, 800);
-                    },
-                    onStateChange: function(e) {
-                        if (e.data === YT.PlayerState.ENDED || e.data === YT.PlayerState.PAUSED) {
-                            if (clipPreviewing) stopClipPreview();
-                        }
-                    }
-                }
-            });
-        }
-
-        function onClipDurationKnown() {
-            clipEndSec = Math.min(clipMaxDur, clipTotalDuration);
-            const m = Math.floor(clipTotalDuration/60), s = Math.floor(clipTotalDuration%60);
-            document.getElementById('clipSongDuration').textContent = m+':'+String(s).padStart(2,'0');
-            document.getElementById('clipSongName').textContent = 'YouTube · ' + clipVideoId;
-            drawClipWaveform();
-            updateClipWindow();
-            setupClipDrag();
-        }
-
-        function drawClipWaveform() {
-            const canvas = document.getElementById('clipWaveformCanvas');
-            if (!canvas) return;
-            const outer = document.getElementById('clipWaveformOuter');
-            canvas.width = outer.offsetWidth || 320;
-            const ctx = canvas.getContext('2d');
-            const W = canvas.width, H = canvas.height;
-            ctx.clearRect(0,0,W,H);
-            const bars = Math.floor(W / 5);
-            for (let i = 0; i < bars; i++) {
-                const x = i * 5 + 1;
-                const seed = Math.sin(i * 127.1 + 311.7) * 43758.5453;
-                const rand = seed - Math.floor(seed);
-                const h = 8 + rand * (H * 0.75);
-                const y = (H - h) / 2;
-                // color based on position relative to clip window
-                const pct = (i / bars) * clipTotalDuration;
-                const inClip = pct >= clipStartSec && pct <= clipEndSec;
-                ctx.fillStyle = inClip
-                    ? `hsl(${220 + i*0.5}, 80%, 65%)`
-                    : 'rgba(160,160,180,0.25)';
-                ctx.beginPath();
-                ctx.roundRect(x, y, 3, h, 1.5);
-                ctx.fill();
-            }
-        }
-
-        function updateClipWindow() {
-            if (!clipTotalDuration) return;
-            const outer = document.getElementById('clipWaveformOuter');
-            const W = outer.offsetWidth || 320;
-            const win = document.getElementById('clipWindow');
-            const leftPct = (clipStartSec / clipTotalDuration) * 100;
-            const widthPct = ((clipEndSec - clipStartSec) / clipTotalDuration) * 100;
-            win.style.left = leftPct + '%';
-            win.style.width = widthPct + '%';
-            // time labels
-            document.getElementById('clipStartLabel').textContent = 'Mulai: ' + fmtSec(clipStartSec);
-            document.getElementById('clipEndLabel').textContent = 'Akhir: ' + fmtSec(clipEndSec);
-            const dur = Math.round(clipEndSec - clipStartSec);
-            document.getElementById('clipDurationBadge').textContent = dur + 's';
-            drawClipWaveform();
-        }
-
-        function fmtSec(s) {
-            const si = Math.floor(s);
-            return Math.floor(si/60)+':'+String(si%60).padStart(2,'0');
-        }
-
-        function setupClipDrag() {
-            const outer = document.getElementById('clipWaveformOuter');
-            const handleL = document.getElementById('clipHandleLeft');
-            const handleR = document.getElementById('clipHandleRight');
-            const inner = document.getElementById('clipWindowInner');
-
-            function getSecFromX(clientX) {
-                const rect = outer.getBoundingClientRect();
-                const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-                return pct * clipTotalDuration;
-            }
-
-            function onMove(e) {
-                if (!clipDragging) return;
-                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                const sec = getSecFromX(clientX);
-                if (clipDragging === 'left') {
-                    const newStart = Math.max(0, Math.min(sec, clipEndSec - 5));
-                    if (clipEndSec - newStart > clipMaxDur) clipEndSec = newStart + clipMaxDur;
-                    clipStartSec = newStart;
-                } else if (clipDragging === 'right') {
-                    const newEnd = Math.min(clipTotalDuration, Math.max(sec, clipStartSec + 5));
-                    if (newEnd - clipStartSec > clipMaxDur) clipStartSec = newEnd - clipMaxDur;
-                    clipEndSec = newEnd;
-                } else if (clipDragging === 'window') {
-                    const delta = sec - clipDragStartX;
-                    const dur = clipEndSec - clipStartSec;
-                    let newStart = Math.max(0, Math.min(clipTotalDuration - dur, clipDragStartVal + delta));
-                    clipStartSec = newStart;
-                    clipEndSec = newStart + dur;
-                }
-                updateClipWindow();
-            }
-
-            function onUp() { clipDragging = null; }
-
-            function startDrag(type, e) {
-                e.preventDefault();
-                clipDragging = type;
-                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                clipDragStartX = (clientX - document.getElementById('clipWaveformOuter').getBoundingClientRect().left) / (document.getElementById('clipWaveformOuter').offsetWidth) * clipTotalDuration;
-                clipDragStartVal = clipStartSec;
-            }
-
-            handleL.addEventListener('mousedown', e => startDrag('left', e));
-            handleL.addEventListener('touchstart', e => startDrag('left', e), {passive:false});
-            handleR.addEventListener('mousedown', e => startDrag('right', e));
-            handleR.addEventListener('touchstart', e => startDrag('right', e), {passive:false});
-            inner.addEventListener('mousedown', e => startDrag('window', e));
-            inner.addEventListener('touchstart', e => startDrag('window', e), {passive:false});
-
-            document.addEventListener('mousemove', onMove);
-            document.addEventListener('touchmove', onMove, {passive:false});
-            document.addEventListener('mouseup', onUp);
-            document.addEventListener('touchend', onUp);
-        }
-
-        window.toggleClipPreview = function() {
-            if (!clipPlayer || !clipPlayerReady) return;
-            if (clipPreviewing) {
-                stopClipPreview();
-            } else {
-                startClipPreview();
-            }
-        };
-
-        function startClipPreview() {
-            clipPreviewing = true;
-            document.getElementById('clipPreviewBtn').textContent = '⏹ Stop Preview';
-            clipPlayer.seekTo(clipStartSec, true);
-            clipPlayer.playVideo();
-            const playhead = document.getElementById('clipPlayhead');
-            playhead.style.display = 'block';
-            if (clipPreviewInterval) clearInterval(clipPreviewInterval);
-            clipPreviewInterval = setInterval(() => {
-                if (!clipPlayer || !clipPlayerReady) return;
-                try {
-                    const cur = clipPlayer.getCurrentTime();
-                    if (cur >= clipEndSec) { stopClipPreview(); return; }
-                    const pct = ((cur - clipStartSec) / (clipEndSec - clipStartSec)) * 100;
-                    const outer = document.getElementById('clipWaveformOuter');
-                    const winEl = document.getElementById('clipWindow');
-                    const winLeft = parseFloat(winEl.style.left);
-                    const winWidth = parseFloat(winEl.style.width);
-                    playhead.style.left = (winLeft + winWidth * pct / 100) + '%';
-                } catch(e) {}
-            }, 100);
-        }
-
-        function stopClipPreview() {
-            clipPreviewing = false;
-            if (clipPreviewInterval) { clearInterval(clipPreviewInterval); clipPreviewInterval = null; }
-            if (clipPlayer && clipPlayerReady) try { clipPlayer.pauseVideo(); } catch(e) {}
-            document.getElementById('clipPreviewBtn').textContent = '▶ Preview Klip';
-            document.getElementById('clipPlayhead').style.display = 'none';
-        }
 
         window.saveMyNote = async function() {
             if (!currentUser) return;
             const text = document.getElementById('noteTextInput').value.trim();
             const youtubeUrl = document.getElementById('noteYoutubeInput').value.trim();
+            const songTitleInput = document.getElementById('noteSongTitle').value.trim();
+            const artistNameInput = document.getElementById('noteArtistName').value.trim();
             if (!text && !youtubeUrl) { alert('⚠️ Isi catatan atau tambahkan lagu YouTube!'); return; }
 
             const videoId = extractYoutubeId(youtubeUrl);
@@ -1302,10 +1051,9 @@
                 text,
                 youtubeUrl,
                 youtubeId: videoId || null,
-                clipStart: videoId ? Math.floor(clipStartSec) : 0,
-                clipEnd: videoId ? Math.floor(clipEndSec) : 0,
-                songTitle: text || 'Untitled Song',
-                artistName: 'Unknown Artist',
+                // Gunakan input user, fallback ke text catatan
+                songTitle: songTitleInput || text || 'Untitled Song',
+                artistName: artistNameInput || 'Unknown Artist',
                 userId: currentUser.uid,
                 userName: currentUserName,
                 userPhoto: currentUserPhoto,
@@ -1468,193 +1216,79 @@
             });
         }
 
-        // FIX: openNoteViewer fully rewritten — removed orphaned code & instagramNoteViewer reference
+        // FIX: openNoteViewer — gunakan instagramNoteViewer untuk modal Instagram-style dengan lirik
         window.openNoteViewer = function(userId) {
             get(ref(database, `notes/${userId}`)).then(snap => {
                 if (!snap.exists()) { alert('Catatan tidak ditemukan atau sudah dihapus.'); return; }
                 const note = snap.val();
-
-                // FIX: set viewingNoteUserId so like/reply work correctly
                 viewingNoteUserId = userId;
-                audioPlaying = false;
-
-                document.getElementById('viewerAvatar').src = note.userPhoto || 'https://via.placeholder.com/40';
-                document.getElementById('viewerName').textContent = note.userName || 'User';
-                document.getElementById('viewerTime').textContent = formatTimeAgo(note.updatedAt);
-                document.getElementById('viewerText').textContent = note.text || '';
-
-                const ytContainer = document.getElementById('viewerYtContainer');
-                if (note.youtubeId) {
-                    document.getElementById('audioSongName').textContent = note.songTitle || note.text || 'Lagu dari ' + (note.userName || 'teman');
-                    ytContainer.style.display = 'block';
-                    loadYtPlayerVideo(note.youtubeId, note.clipStart || 0);
-                    window._currentClipEnd = note.clipEnd || 0;
+                // Gunakan modal baru Instagram-style
+                if (window.instagramNoteViewer) {
+                    window.instagramNoteViewer.open(userId, note);
                 } else {
-                    ytContainer.style.display = 'none';
+                    // Fallback ke modal lama jika instagramNoteViewer tidak tersedia
+                    _openNoteViewerLegacy(userId, note);
                 }
-
-                const likes = note.likes || {};
-                const likeCount = Object.keys(likes).length;
-                const liked = !!likes[currentUser.uid];
-                const likeBtn = document.getElementById('btnLikeNote');
-                likeBtn.className = `btn-like-note${liked ? ' liked' : ''}`;
-                likeBtn.innerHTML = `${liked ? '❤️' : '🤍'} <span id="likeCount">${likeCount}</span> Suka`;
-
-                renderReplies(note.replies || {});
-                document.getElementById('replyInput').value = '';
-                document.getElementById('noteViewerModal').style.display = 'flex';
             }).catch(err => { console.error('Error opening note viewer:', err); alert('❌ Gagal membuka catatan.'); });
         };
 
+        // Modal lama (fallback)
+        function _openNoteViewerLegacy(userId, note) {
+            audioPlaying = false;
+            document.getElementById('viewerAvatar').src = note.userPhoto || 'https://via.placeholder.com/40';
+            document.getElementById('viewerName').textContent = note.userName || 'User';
+            document.getElementById('viewerTime').textContent = formatTimeAgo(note.updatedAt);
+            document.getElementById('viewerText').textContent = note.text || '';
+            const ytContainer = document.getElementById('viewerYtContainer');
+            const iframe = document.getElementById('viewerYtIframe');
+            if (note.youtubeId) {
+                iframe.src = `https://www.youtube.com/embed/${note.youtubeId}?autoplay=0&controls=0&enablejsapi=1`;
+                document.getElementById('audioSongName').textContent = note.text || 'Lagu dari ' + (note.userName || 'teman');
+                document.getElementById('audioPlayBtn').textContent = '▶';
+                document.getElementById('audioMusicIcon').classList.remove('playing');
+                ytContainer.style.display = 'block';
+            } else {
+                iframe.src = '';
+                ytContainer.style.display = 'none';
+            }
+            const likes = note.likes || {};
+            const likeCount = Object.keys(likes).length;
+            const liked = !!likes[currentUser.uid];
+            const likeBtn = document.getElementById('btnLikeNote');
+            likeBtn.className = `btn-like-note${liked ? ' liked' : ''}`;
+            likeBtn.innerHTML = `${liked ? '❤️' : '🤍'} <span id="likeCount">${likeCount}</span> Suka`;
+            renderReplies(note.replies || {});
+            document.getElementById('replyInput').value = '';
+            document.getElementById('noteViewerModal').style.display = 'flex';
+        }
+
         window.closeNoteViewer = function() {
             document.getElementById('noteViewerModal').style.display = 'none';
+            document.getElementById('viewerYtIframe').src = '';
             viewingNoteUserId = null;
             audioPlaying = false;
-            window._currentClipEnd = 0;
-            if (window.ytPlayer && window.ytPlayer.stopVideo) {
-                try { window.ytPlayer.stopVideo(); } catch(e) {}
-            }
-            if (progressInterval) { clearInterval(progressInterval); progressInterval = null; }
         };
-
-        // ===== YOUTUBE IFRAME API (VIEWER PLAYER) =====
-        let progressInterval = null;
-        let isMuted = false;
-        let lastVolume = 80;
-        let ytPlayerReady = false;
-        let pendingVideoId = null;
-
-        if (!window._ytApiLoaded) {
-            window._ytApiLoaded = true;
-            const tag = document.createElement('script');
-            tag.src = 'https://www.youtube.com/iframe_api';
-            document.head.appendChild(tag);
-        }
-
-        window.onYouTubeIframeAPIReady = function() {
-            // Viewer player
-            window.ytPlayer = new YT.Player('viewerYtIframe', {
-                width: '1', height: '1',
-                playerVars: { autoplay: 0, controls: 0, enablejsapi: 1 },
-                events: {
-                    onReady: function(e) {
-                        ytPlayerReady = true;
-                        e.target.setVolume(80);
-                        if (pendingVideoId) {
-                            e.target.loadVideoById(pendingVideoId);
-                            e.target.pauseVideo();
-                            pendingVideoId = null;
-                        }
-                    },
-                    onStateChange: function(e) {
-                        const btn = document.getElementById('audioPlayBtn');
-                        const icon = document.getElementById('audioMusicIcon');
-                        if (e.data === YT.PlayerState.PLAYING) {
-                            audioPlaying = true;
-                            if (btn) btn.textContent = '⏸';
-                            if (icon) icon.classList.add('playing');
-                            startProgressUpdate();
-                        } else if (e.data === YT.PlayerState.PAUSED || e.data === YT.PlayerState.ENDED) {
-                            audioPlaying = false;
-                            if (btn) btn.textContent = '▶';
-                            if (icon) icon.classList.remove('playing');
-                            if (progressInterval) { clearInterval(progressInterval); progressInterval = null; }
-                        }
-                    }
-                }
-            });
-            // Init clip selector player if pending
-            if (window._pendingClipInit) { window._pendingClipInit(); window._pendingClipInit = null; }
-        };
-
-        function startProgressUpdate() {
-            if (progressInterval) clearInterval(progressInterval);
-            progressInterval = setInterval(() => {
-                if (!window.ytPlayer || !window.ytPlayer.getCurrentTime) return;
-                try {
-                    const current = window.ytPlayer.getCurrentTime() || 0;
-                    const total = window.ytPlayer.getDuration() || 0;
-                    const clipEnd = window._currentClipEnd || 0;
-                    if (clipEnd > 0 && current >= clipEnd) {
-                        window.ytPlayer.pauseVideo(); return;
-                    }
-                    document.getElementById('audioCurrentTime').textContent = formatAudioTime(current);
-                    document.getElementById('audioTotalTime').textContent = formatAudioTime(total);
-                    const pct = total > 0 ? (current / total) * 100 : 0;
-                    document.getElementById('audioSeekFill').style.width = pct + '%';
-                    document.getElementById('audioSeekThumb').style.left = pct + '%';
-                } catch(e) {}
-            }, 500);
-        }
-
-        function formatAudioTime(sec) {
-            const s = Math.floor(sec);
-            return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0');
-        }
 
         window.toggleAudio = function() {
-            if (!window.ytPlayer || !ytPlayerReady) return;
-            if (audioPlaying) { window.ytPlayer.pauseVideo(); }
-            else { window.ytPlayer.playVideo(); }
-        };
+            const iframe = document.getElementById('viewerYtIframe');
+            const btn = document.getElementById('audioPlayBtn');
+            const icon = document.getElementById('audioMusicIcon');
+            const match = iframe.src.match(/embed\/([a-zA-Z0-9_-]{11})/);
+            if (!match) return;
+            const videoId = match[1];
 
-        window.skipAudio = function(seconds) {
-            if (!window.ytPlayer || !ytPlayerReady) return;
-            const current = window.ytPlayer.getCurrentTime() || 0;
-            const total = window.ytPlayer.getDuration() || 0;
-            window.ytPlayer.seekTo(Math.max(0, Math.min(total, current + seconds)), true);
-        };
-
-        window.seekToPosition = function(event) {
-            if (!window.ytPlayer || !ytPlayerReady) return;
-            const track = document.getElementById('audioSeekTrack');
-            const rect = track.getBoundingClientRect();
-            const pct = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
-            window.ytPlayer.seekTo(pct * (window.ytPlayer.getDuration() || 0), true);
-        };
-
-        window.setVolume = function(val) {
-            lastVolume = parseInt(val);
-            if (window.ytPlayer && ytPlayerReady) window.ytPlayer.setVolume(lastVolume);
-            document.getElementById('audioVolLabel').textContent = lastVolume + '%';
-            const icon = document.getElementById('audioVolIcon');
-            if (icon) icon.textContent = lastVolume === 0 ? '🔇' : lastVolume < 40 ? '🔉' : '🔊';
-            isMuted = lastVolume === 0;
-        };
-
-        window.toggleMute = function() {
-            if (!window.ytPlayer || !ytPlayerReady) return;
-            isMuted = !isMuted;
-            if (isMuted) {
-                window.ytPlayer.mute();
-                document.getElementById('audioVolumeSlider').value = 0;
-                document.getElementById('audioVolLabel').textContent = '0%';
-                document.getElementById('audioVolIcon').textContent = '🔇';
+            if (!audioPlaying) {
+                iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&enablejsapi=1`;
+                btn.textContent = '⏸';
+                icon.classList.add('playing');
+                audioPlaying = true;
             } else {
-                window.ytPlayer.unMute();
-                window.ytPlayer.setVolume(lastVolume);
-                document.getElementById('audioVolumeSlider').value = lastVolume;
-                document.getElementById('audioVolLabel').textContent = lastVolume + '%';
-                document.getElementById('audioVolIcon').textContent = '🔊';
+                iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=0&controls=0&enablejsapi=1`;
+                btn.textContent = '▶';
+                icon.classList.remove('playing');
+                audioPlaying = false;
             }
         };
-
-        function loadYtPlayerVideo(videoId, startSec) {
-            const start = startSec || 0;
-            if (ytPlayerReady && window.ytPlayer && window.ytPlayer.loadVideoById) {
-                window.ytPlayer.loadVideoById({ videoId: videoId, startSeconds: start });
-                window.ytPlayer.pauseVideo();
-            } else {
-                pendingVideoId = { videoId: videoId, startSeconds: start };
-            }
-            document.getElementById('audioCurrentTime').textContent = '0:00';
-            document.getElementById('audioTotalTime').textContent = '0:00';
-            document.getElementById('audioSeekFill').style.width = '0%';
-            document.getElementById('audioSeekThumb').style.left = '0%';
-            document.getElementById('audioPlayBtn').textContent = '▶';
-            document.getElementById('audioMusicIcon').classList.remove('playing');
-            audioPlaying = false;
-        }
 
         window.toggleLikeNote = async function() {
             if (!currentUser || !viewingNoteUserId) return; // FIX: now uses correct viewingNoteUserId
