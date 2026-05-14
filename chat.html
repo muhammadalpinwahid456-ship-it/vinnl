@@ -737,18 +737,37 @@
 
         // ===== MESSAGES =====
 
-        function loadMessages() {
-            if (!selectedUserId || !currentUser) return;
-            if (messagesUnsubscribe) messagesUnsubscribe();
-            const chatId = generateChatId(currentUser.uid, selectedUserId);
-            const messagesRef = ref(database, `chats/${chatId}/messages`);
+       function loadMessages() {
+    if (!selectedUserId || !currentUser) return;
 
-            // ✅ FIX: Langsung render tanpa debounce — debounce menyebabkan
-            // snapshot stale dipakai karena closure tidak update reference
-            messagesUnsubscribe = onValue(messagesRef, (snapshot) => {
-                renderMessages(snapshot);
+    if (messagesUnsubscribe) messagesUnsubscribe();
+
+    const chatId = generateChatId(currentUser.uid, selectedUserId);
+    const messagesRef = ref(database, `chats/${chatId}/messages`);
+
+    messagesUnsubscribe = onValue(messagesRef, (snapshot) => {
+        const messagesArea = document.getElementById('messagesArea');
+
+        messagesArea.innerHTML = '';
+
+        let messages = [];
+
+        if (snapshot.exists()) {
+
+            snapshot.forEach((child) => {
+                messages.push({
+                    key: child.key,
+                    ...child.val()
+                });
             });
+
         }
+
+        messages.sort((a, b) => a.timestamp - b.timestamp);
+
+        console.log(messages);
+    });
+}
 
         function renderMessages(snapshot) {
             const messagesArea = document.getElementById('messagesArea');
@@ -756,7 +775,12 @@
             messagesArea.innerHTML = '';
             let messages = [];
             if (snapshot.exists()) {
-                snapshot.forEach((child) => messages.push({ key: child.key, ...child.val() }));
+                snapshot.forEach((child) =>
+    messages.push({
+        key: child.key,
+        ...child.val()
+    })
+);
             }
             messages.sort((a, b) => a.timestamp - b.timestamp);
 
