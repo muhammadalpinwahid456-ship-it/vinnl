@@ -294,6 +294,8 @@ body {
     flex-direction: column;
     background: #0d1117;
     min-height: 0;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .welcome-message {
@@ -326,6 +328,7 @@ body {
     flex-direction: column;
     background: #0d1117;
     min-height: 0;
+    overflow: hidden;
 }
 
 .chat-window-header {
@@ -384,9 +387,9 @@ body {
 .messages-area {
     flex: 1 1 0%;
     min-height: 0;
-    max-height: 100%;
-    padding: 20px;
     overflow-y: auto;
+    overflow-x: hidden;
+    padding: 20px;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -949,6 +952,7 @@ body {
 @media (max-width: 768px) {
     .chat-wrapper {
         flex-direction: column;
+        position: relative;
     }
 
     .chat-sidebar {
@@ -961,6 +965,9 @@ body {
         display: flex;
         flex-direction: column;
         overflow: hidden;
+        position: relative;
+        z-index: 10;
+        flex-shrink: 0;
     }
 
     #panelPesan {
@@ -1008,6 +1015,17 @@ body {
 
     .message-menu {
         min-width: 200px;
+    }
+
+    /* Sembunyikan sidebar saat chat dibuka di mobile */
+    .chat-sidebar.hidden-mobile {
+        display: none !important;
+    }
+
+    .chat-main {
+        flex: 1;
+        min-height: 0;
+        height: 100%;
     }
 }
 
