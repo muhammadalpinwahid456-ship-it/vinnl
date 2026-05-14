@@ -276,7 +276,7 @@ class InstagramNoteViewer {
 
             <div class="insta-reply-wrap">
                 <input type="text" id="insta-reply-input" class="insta-reply-input"
-                       placeholder="Balas di sini atau kirim DM..." maxlength="100"
+                       placeholder="Tulis balasan..." maxlength="100"
                        onkeypress="if(event.key==='Enter') window.instagramNoteViewer._sendReply('${userId}')">
                 <button class="insta-reply-send" onclick="window.instagramNoteViewer._sendReply('${userId}')">Kirim</button>
             </div>
@@ -332,16 +332,62 @@ class InstagramNoteViewer {
     }
 
     _replyViaDM(userId) {
-        if (!this.currentNote) return;
-        const note = this.currentNote;
-        // Tutup modal note dulu
-        this.close();
-        // Cari data user dari allUsers atau Firebase, lalu buka DM
-        if (window.openDMWithNote) {
-            window.openDMWithNote(userId, note);
-        } else {
-            console.warn('openDMWithNote not available');
+        // Jangan bisa DM diri sendiri
+        if (userId === window._currentUserId) {
+            alert('Ini catatan kamu sendiri!');
+            return;
         }
+
+        const note = this.currentNote;
+
+        // Tutup modal notes dulu
+        this.close();
+
+        // Pindah ke tab Pesan
+        if (window.switchSidebarTab) window.switchSidebarTab('pesan');
+
+        // Cari data user dari allUsers
+        const allUsers = window._allUsers || [];
+        const user = allUsers.find(u => u.uid === userId);
+        const userName = user ? user.name : (note ? (note.userName || 'User') : 'User');
+        const photoURL = user ? user.photoURL : (note ? (note.userPhoto || '') : '');
+
+        // Buka chat dengan user tersebut
+        if (window.selectUser) {
+            window.selectUser(userId, userName, photoURL);
+        }
+
+        // Tunggu sebentar lalu sisipkan konteks catatan ke input
+        setTimeout(() => {
+            const msgInput = document.getElementById('messageInput');
+            if (msgInput && note) {
+                const noteLabel = note.songTitle
+                    ? `🎵 ${note.songTitle}${note.artistName ? ' - ' + note.artistName : ''}`
+                    : (note.text ? `📝 "${note.text}"` : '');
+                // Tampilkan banner "Membalas catatan"
+                const inputArea = document.querySelector('.input-area');
+                if (inputArea) {
+                    const old = document.getElementById('noteReplyDMBanner');
+                    if (old) old.remove();
+                    const banner = document.createElement('div');
+                    banner.id = 'noteReplyDMBanner';
+                    banner.style.cssText = `
+                        display:flex; align-items:center; justify-content:space-between;
+                        background:linear-gradient(135deg,#1e2d4a,#162136);
+                        border-left:3px solid #3b82f6; border-radius:0 8px 8px 0;
+                        padding:8px 12px; margin:0 16px 4px;
+                        font-size:0.82rem; color:#8b949e;
+                    `;
+                    banner.innerHTML = `
+                        <span>↩️ Membalas catatan&nbsp;<strong style="color:#60a5fa">${noteLabel}</strong></span>
+                        <button onclick="document.getElementById('noteReplyDMBanner').remove()"
+                            style="background:none;border:none;color:#8b949e;cursor:pointer;font-size:1rem;padding:0 4px;">✕</button>
+                    `;
+                    inputArea.parentNode.insertBefore(banner, inputArea);
+                }
+                msgInput.focus();
+            }
+        }, 300);
     }
 
     close() {
