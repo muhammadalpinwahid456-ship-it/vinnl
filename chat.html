@@ -579,6 +579,10 @@
             if (user) {
                 currentUser = user;
                 window._currentUserId = user.uid; // expose untuk chat-notes.js
+                // ✅ FIX #1: Expose ke global SEGERA setelah auth ready
+                // agar openNoteViewer() dan fitur notes/DM tidak crash
+                window.currentUser = currentUser;
+                window.database    = database;
                 document.getElementById('authCheck').style.display = 'none';
                 document.getElementById('chatContainer').style.display = 'flex';
                 setupMyPresence(user.uid);
@@ -586,6 +590,7 @@
                 loadAllUsers();
             } else {
                 window._currentUserId = null;
+                window.currentUser = null;
                 document.getElementById('authCheck').style.display = 'flex';
                 document.getElementById('chatContainer').style.display = 'none';
             }
@@ -724,6 +729,8 @@
         };
 
         // ===== MESSAGES =====
+        let _renderDebounceTimer = null;
+
         function loadMessages() {
             if (!selectedUserId || !currentUser) return;
             if (messagesUnsubscribe) messagesUnsubscribe();
@@ -731,61 +738,71 @@
             const messagesRef = ref(database, `chats/${chatId}/messages`);
 
             messagesUnsubscribe = onValue(messagesRef, (snapshot) => {
-                const messagesArea = document.getElementById('messagesArea');
-                messagesArea.innerHTML = '';
-                let messages = [];
-                if (snapshot.exists()) {
-                    snapshot.forEach((child) => messages.push({ key: child.key, ...child.val() }));
-                }
-                messages.sort((a, b) => a.timestamp - b.timestamp);
-
-                if (messages.length === 0) {
-                    messagesArea.innerHTML = '<p class="no-messages" style="text-align:center;color:#999;padding:2rem;">Belum ada pesan. Mulai percakapan!</p>';
-                    return;
-                }
-
-                messages.forEach(msg => {
-                    if (msg.deletedFor && msg.deletedFor[currentUser.uid]) return;
-                    if (msg.isUnsent && msg.senderId !== currentUser.uid) return;
-                    if (msg.isDeleted && msg.senderId !== currentUser.uid) return;
-
-                    const el = document.createElement('div');
-                    el.className = `message ${msg.senderId === currentUser.uid ? 'sent' : 'received'}`;
-                    el.setAttribute('data-message-id', msg.key);
-
-                    let contentHtml = '';
-                    if (msg.isDeleted) {
-                        contentHtml = '<p style="font-style:italic;color:#999;">🗑️ Pesan telah dihapus</p>';
-                    } else if (msg.isUnsent) {
-                        contentHtml = '<p style="font-style:italic;color:#aaa;font-size:0.88rem;">↩️ Kamu membatalkan pengiriman pesan ini</p>';
-                    } else if (msg.mediaUrl && msg.mediaType) {
-                        if (msg.mediaType === 'image') {
-                            contentHtml = `<div class="media-message" onclick="openMediaModal('${msg.mediaUrl}','image')"><img src="${msg.mediaUrl}" alt="image" style="max-width:250px;border-radius:8px;cursor:pointer;"></div>`;
-                        } else if (msg.mediaType === 'video') {
-                            contentHtml = `<div class="media-message" onclick="openMediaModal('${msg.mediaUrl}','video')"><video src="${msg.mediaUrl}" style="max-width:250px;border-radius:8px;cursor:pointer;" onmouseover="this.controls=true" onmouseout="this.controls=false"></video></div>`;
-                        }
-                        if (msg.text) contentHtml += `<p style="margin-top:8px;">${escapeHtml(msg.text)}</p>`;
-                    } else {
-                        contentHtml = `<p>${escapeHtml(msg.text)}</p>`;
-                    }
-
-                    const statusHtml = msg.senderId === currentUser.uid
-                        ? `<span class="message-status"><span class="tick ${msg.isRead ? 'read' : ''}">✔✔</span></span>`
-                        : '';
-
-                    el.innerHTML = `
-                        <div class="message-bubble"
-                            data-message-key="${msg.key}"
-                            data-sender-id="${msg.senderId}"
-                            data-is-unsent="${msg.isUnsent ? 'true' : 'false'}"
-                            oncontextmenu="showMessageMenu(event, '${msg.key}')">
-                            ${contentHtml}
-                            <span class="message-time">${formatTime(msg.timestamp)} ${statusHtml}</span>
-                        </div>`;
-                    messagesArea.appendChild(el);
-                });
-                messagesArea.scrollTop = messagesArea.scrollHeight;
+                // Debounce: tunggu 80ms setelah trigger terakhir baru render
+                // Ini mencegah race condition saat markAsRead trigger multiple onValue
+                clearTimeout(_renderDebounceTimer);
+                _renderDebounceTimer = setTimeout(() => {
+                    renderMessages(snapshot);
+                }, 80);
             });
+        }
+
+        function renderMessages(snapshot) {
+            const messagesArea = document.getElementById('messagesArea');
+            if (!messagesArea) return;
+            messagesArea.innerHTML = '';
+            let messages = [];
+            if (snapshot.exists()) {
+                snapshot.forEach((child) => messages.push({ key: child.key, ...child.val() }));
+            }
+            messages.sort((a, b) => a.timestamp - b.timestamp);
+
+            if (messages.length === 0) {
+                messagesArea.innerHTML = '<p class="no-messages" style="text-align:center;color:#999;padding:2rem;">Belum ada pesan. Mulai percakapan!</p>';
+                return;
+            }
+
+            messages.forEach(msg => {
+                if (msg.deletedFor && msg.deletedFor[currentUser.uid]) return;
+                if (msg.isUnsent && msg.senderId !== currentUser.uid) return;
+                if (msg.isDeleted && msg.senderId !== currentUser.uid) return;
+
+                const el = document.createElement('div');
+                el.className = `message ${msg.senderId === currentUser.uid ? 'sent' : 'received'}`;
+                el.setAttribute('data-message-id', msg.key);
+
+                let contentHtml = '';
+                if (msg.isDeleted) {
+                    contentHtml = '<p style="font-style:italic;color:#999;">🗑️ Pesan telah dihapus</p>';
+                } else if (msg.isUnsent) {
+                    contentHtml = '<p style="font-style:italic;color:#aaa;font-size:0.88rem;">↩️ Kamu membatalkan pengiriman pesan ini</p>';
+                } else if (msg.mediaUrl && msg.mediaType) {
+                    if (msg.mediaType === 'image') {
+                        contentHtml = `<div class="media-message" onclick="openMediaModal('${msg.mediaUrl}','image')"><img src="${msg.mediaUrl}" alt="image" style="max-width:250px;border-radius:8px;cursor:pointer;"></div>`;
+                    } else if (msg.mediaType === 'video') {
+                        contentHtml = `<div class="media-message" onclick="openMediaModal('${msg.mediaUrl}','video')"><video src="${msg.mediaUrl}" style="max-width:250px;border-radius:8px;cursor:pointer;" onmouseover="this.controls=true" onmouseout="this.controls=false"></video></div>`;
+                    }
+                    if (msg.text) contentHtml += `<p style="margin-top:8px;">${escapeHtml(msg.text)}</p>`;
+                } else {
+                    contentHtml = `<p>${escapeHtml(msg.text || '')}</p>`;
+                }
+
+                const statusHtml = msg.senderId === currentUser.uid
+                    ? `<span class="message-status"><span class="tick ${msg.isRead ? 'read' : ''}">✔✔</span></span>`
+                    : '';
+
+                el.innerHTML = `
+                    <div class="message-bubble"
+                        data-message-key="${msg.key}"
+                        data-sender-id="${msg.senderId}"
+                        data-is-unsent="${msg.isUnsent ? 'true' : 'false'}"
+                        oncontextmenu="showMessageMenu(event, '${msg.key}')">
+                        ${contentHtml}
+                        <span class="message-time">${formatTime(msg.timestamp)} ${statusHtml}</span>
+                    </div>`;
+                messagesArea.appendChild(el);
+            });
+            messagesArea.scrollTop = messagesArea.scrollHeight;
         }
 
         // ===== BALAS NOTE VIA DM =====
@@ -845,40 +862,62 @@
 
         window.sendMessage = async function() {
             const messageInput = document.getElementById('messageInput');
-            const text = messageInput.value.trim();
+            const text = messageInput ? messageInput.value.trim() : '';
+            // ✅ FIX #2 & #3: Jangan kirim jika kosong
             if (!selectedMediaFile && !text) return;
             if (!selectedUserId || !currentUser) { alert('❌ Error: User tidak terpilih'); return; }
 
-            const chatId = generateChatId(currentUser.uid, selectedUserId);
-            const messagesRef = ref(database, `chats/${chatId}/messages`);
-            const messageData = {
-                senderId: currentUser.uid,
-                senderName: currentUserName,
-                text: text,
-                timestamp: Date.now(),
-                isRead: false,
-                isDeleted: false,
-                deletedFor: {}
-            };
+            // Nonaktifkan tombol kirim sementara untuk cegah double-send
+            const sendBtn = document.querySelector('.btn-send');
+            if (sendBtn) sendBtn.disabled = true;
 
             try {
+                // ✅ FIX #3: Gunakan null (bukan "") agar tidak di-reject Firebase rules
+                let mediaUrl  = null;
+                let mediaType = null;
+
                 if (selectedMediaFile) {
                     document.getElementById('uploadProgress').style.display = 'flex';
                     const uploadResult = await uploadToCloudinary(selectedMediaFile);
-                    messageData.mediaUrl = uploadResult.url;
-                    messageData.mediaType = uploadResult.type;
+                    mediaUrl  = uploadResult.url;
+                    mediaType = uploadResult.type;
                     document.getElementById('uploadProgress').style.display = 'none';
                 }
+
+                // ✅ FIX #3: Bangun objek pesan — JANGAN sertakan field opsional jika nilainya null
+                const messageData = {
+                    senderId:   currentUser.uid,
+                    senderName: currentUserName || currentUser.displayName || 'Unknown',
+                    timestamp:  Date.now(),
+                    isRead:     false,
+                };
+                if (text)      messageData.text      = text;
+                if (mediaUrl)  messageData.mediaUrl  = mediaUrl;
+                if (mediaType) messageData.mediaType = mediaType;
+
+                const chatId = generateChatId(currentUser.uid, selectedUserId);
+                const messagesRef = ref(database, `chats/${chatId}/messages`);
                 await push(messagesRef, messageData);
-                messageInput.value = '';
-                messageInput.focus();
+
+                if (messageInput) { messageInput.value = ''; messageInput.focus(); }
                 cancelMediaPreview();
                 // Hapus banner "Membalas catatan" setelah pesan terkirim
                 const banner = document.getElementById('noteReplyBanner');
                 if (banner) banner.remove();
+
             } catch (error) {
-                alert('❌ Gagal mengirim pesan: ' + error.message);
+                console.error('❌ sendMessage error:', error.code, error.message);
                 document.getElementById('uploadProgress').style.display = 'none';
+                // ✅ FIX #2: Tampilkan error spesifik ke user
+                if (error.code === 'PERMISSION_DENIED') {
+                    alert('⚠️ Tidak punya izin mengirim pesan. Coba login ulang.');
+                } else if (error.message && error.message.toLowerCase().includes('network')) {
+                    alert('⚠️ Koneksi bermasalah. Periksa internet kamu.');
+                } else {
+                    alert('❌ Gagal mengirim pesan: ' + (error.code || error.message || 'Unknown error'));
+                }
+            } finally {
+                if (sendBtn) sendBtn.disabled = false;
             }
         };
 
@@ -890,16 +929,24 @@
         };
 
         function markAsRead(chatId) {
-            get(ref(database, `chats/${chatId}/messages`)).then((snapshot) => {
-                if (snapshot.exists()) {
+            // Delay sedikit agar loadMessages selesai dulu register listener-nya
+            setTimeout(() => {
+                get(ref(database, `chats/${chatId}/messages`)).then((snapshot) => {
+                    if (!snapshot.exists()) return;
+                    const updates = {};
                     snapshot.forEach((child) => {
                         const msg = child.val();
-                        if (msg.senderId !== currentUser.uid && !msg.isRead) {
-                            update(ref(database, `chats/${chatId}/messages/${child.key}`), { isRead: true });
+                        if (msg.senderId !== currentUser.uid && msg.isRead !== true) {
+                            updates[`chats/${chatId}/messages/${child.key}/isRead`] = true;
                         }
                     });
-                }
-            });
+                    // Satu update() dari root = satu trigger onValue, bukan satu per pesan
+                    if (Object.keys(updates).length > 0) {
+                        update(ref(database), updates)
+                            .catch(err => console.error('markAsRead error:', err));
+                    }
+                }).catch(err => console.error('markAsRead get error:', err));
+            }, 300);
         }
 
         window.closeChat = function() {
