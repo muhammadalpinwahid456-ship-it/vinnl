@@ -737,37 +737,18 @@
 
         // ===== MESSAGES =====
 
-       function loadMessages() {
-    if (!selectedUserId || !currentUser) return;
-
-    if (messagesUnsubscribe) messagesUnsubscribe();
-
-    const chatId = generateChatId(currentUser.uid, selectedUserId);
-    const messagesRef = ref(database, `chats/${chatId}/messages`);
-
-    messagesUnsubscribe = onValue(messagesRef, (snapshot) => {
-        const messagesArea = document.getElementById('messagesArea');
-
-        messagesArea.innerHTML = '';
-
-        let messages = [];
-
-        if (snapshot.exists()) {
-
-            snapshot.forEach((child) => {
-                messages.push({
-                    key: child.key,
-                    ...child.val()
-                });
+        function loadMessages() {
+            if (!selectedUserId || !currentUser) return;
+            if (messagesUnsubscribe) {
+                messagesUnsubscribe(); // detach listener lama
+                messagesUnsubscribe = null;
+            }
+            const chatId = generateChatId(currentUser.uid, selectedUserId);
+            const messagesRef = ref(database, `chats/${chatId}/messages`);
+            messagesUnsubscribe = onValue(messagesRef, (snapshot) => {
+                renderMessages(snapshot);
             });
-
         }
-
-        messages.sort((a, b) => a.timestamp - b.timestamp);
-
-        console.log(messages);
-    });
-}
 
         function renderMessages(snapshot) {
             const messagesArea = document.getElementById('messagesArea');
@@ -775,12 +756,7 @@
             messagesArea.innerHTML = '';
             let messages = [];
             if (snapshot.exists()) {
-                snapshot.forEach((child) =>
-    messages.push({
-        key: child.key,
-        ...child.val()
-    })
-);
+                snapshot.forEach((child) => messages.push({ key: child.key, ...child.val() }));
             }
             messages.sort((a, b) => a.timestamp - b.timestamp);
 
@@ -811,7 +787,7 @@
                     }
                     if (msg.text) contentHtml += `<p style="margin-top:8px;">${escapeHtml(msg.text)}</p>`;
                 } else {
-                    contentHtml = `<p>${escapeHtml(msg.text || '')}</p>`;
+                    contentHtml = `<p>${escapeHtml((msg.text !== undefined && msg.text !== null) ? msg.text : '')}</p>`;
                 }
 
                 const statusHtml = msg.senderId === currentUser.uid
@@ -889,61 +865,47 @@
 
         window.sendMessage = async function() {
             const messageInput = document.getElementById('messageInput');
-            const text = messageInput ? messageInput.value.trim() : '';
-            // ✅ FIX #2 & #3: Jangan kirim jika kosong
+            const text = messageInput.value.trim();
             if (!selectedMediaFile && !text) return;
             if (!selectedUserId || !currentUser) { alert('❌ Error: User tidak terpilih'); return; }
 
-            // Nonaktifkan tombol kirim sementara untuk cegah double-send
-            const sendBtn = document.querySelector('.btn-send');
-            if (sendBtn) sendBtn.disabled = true;
+            const chatId = generateChatId(currentUser.uid, selectedUserId);
+            const messagesRef = ref(database, `chats/${chatId}/messages`);
+
+            // KUNCI FIX: struktur messageData sama persis seperti versi lama yang bekerja
+            // isRead, isDeleted, deletedFor WAJIB ada agar Firebase validate tidak gagal
+            const messageData = {
+                senderId:   currentUser.uid,
+                senderName: currentUserName,
+                text:       text,
+                timestamp:  Date.now(),
+                isRead:     false,
+                isDeleted:  false,
+                deletedFor: {}
+            };
 
             try {
-                // ✅ FIX #3: Gunakan null (bukan "") agar tidak di-reject Firebase rules
-                let mediaUrl  = null;
-                let mediaType = null;
-
                 if (selectedMediaFile) {
                     document.getElementById('uploadProgress').style.display = 'flex';
                     const uploadResult = await uploadToCloudinary(selectedMediaFile);
-                    mediaUrl  = uploadResult.url;
-                    mediaType = uploadResult.type;
+                    messageData.mediaUrl  = uploadResult.url;
+                    messageData.mediaType = uploadResult.type;
                     document.getElementById('uploadProgress').style.display = 'none';
                 }
 
-                // ✅ FIX #3: Bangun objek pesan — JANGAN sertakan field opsional jika nilainya null
-                const messageData = {
-                    senderId:   currentUser.uid,
-                    senderName: currentUserName || currentUser.displayName || 'Unknown',
-                    timestamp:  Date.now(),
-                };
-                if (text)      messageData.text      = text;
-                if (mediaUrl)  messageData.mediaUrl  = mediaUrl;
-                if (mediaType) messageData.mediaType = mediaType;
-
-                const chatId = generateChatId(currentUser.uid, selectedUserId);
-                const messagesRef = ref(database, `chats/${chatId}/messages`);
                 await push(messagesRef, messageData);
-
-                if (messageInput) { messageInput.value = ''; messageInput.focus(); }
+                messageInput.value = '';
+                messageInput.focus();
                 cancelMediaPreview();
+
                 // Hapus banner "Membalas catatan" setelah pesan terkirim
                 const banner = document.getElementById('noteReplyBanner');
                 if (banner) banner.remove();
 
             } catch (error) {
-                console.error('❌ sendMessage error:', error.code, error.message);
+                console.error('❌ sendMessage error:', error);
+                alert('❌ Gagal mengirim pesan: ' + error.message);
                 document.getElementById('uploadProgress').style.display = 'none';
-                // ✅ FIX #2: Tampilkan error spesifik ke user
-                if (error.code === 'PERMISSION_DENIED') {
-                    alert('⚠️ Tidak punya izin mengirim pesan. Coba login ulang.');
-                } else if (error.message && error.message.toLowerCase().includes('network')) {
-                    alert('⚠️ Koneksi bermasalah. Periksa internet kamu.');
-                } else {
-                    alert('❌ Gagal mengirim pesan: ' + (error.code || error.message || 'Unknown error'));
-                }
-            } finally {
-                if (sendBtn) sendBtn.disabled = false;
             }
         };
 
@@ -1109,7 +1071,7 @@
                         closeMessageMenu();
                         return;
                     }
-                    update(messageRef, { isUnsent: true, text: '', mediaUrl: null, mediaType: null })
+                    update(messageRef, { isUnsent: true, text: '' })
                         .then(() => closeMessageMenu());
                 }
             });
