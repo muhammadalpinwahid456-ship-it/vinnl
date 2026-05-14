@@ -6,6 +6,7 @@
     <title>ALVIN Chat</title>
     <link rel="stylesheet" href="chat.style.css">
     <link rel="stylesheet" href="chat-notes.css">
+    <script src="chat-notes.js"></script>
 </head>
 <body>
     <!-- AUTH CHECK -->
@@ -188,7 +189,17 @@
             </div>
 
             <div class="form-group">
-                <label>🎵 Link YouTube (hanya audio yang diputar)</label>
+                <label>🎵 Judul Lagu <span style="color:#8b949e;font-weight:400">(untuk cari lirik)</span></label>
+                <input type="text" id="noteSongTitle" maxlength="80" placeholder="Contoh: Blinding Lights">
+            </div>
+
+            <div class="form-group">
+                <label>🎤 Nama Artis <span style="color:#8b949e;font-weight:400">(opsional)</span></label>
+                <input type="text" id="noteArtistName" maxlength="60" placeholder="Contoh: The Weeknd">
+            </div>
+
+            <div class="form-group">
+                <label>🔗 Link YouTube (hanya audio yang diputar)</label>
                 <input type="text" id="noteYoutubeInput" placeholder="https://www.youtube.com/watch?v=...">
             </div>
 
@@ -218,8 +229,22 @@
                     <div class="note-viewer-time" id="viewerTime"></div>
                 </div>
             </div>
-            <div class="note-viewer-text" id="viewerText"></div>
 
+            <!-- SONG INFO BOX - NEW -->
+            <div class="note-song-info-box">
+                <div class="note-song-icon">🎵</div>
+                <p class="note-song-title" id="viewerSongTitle">Loading...</p>
+                <p class="note-song-artist" id="viewerArtistName">Unknown</p>
+                <div class="note-song-duration">
+                    <span id="viewerCurrentTime">0:00</span>
+                    <span id="viewerDuration">0:00</span>
+                </div>
+            </div>
+            <!-- LYRICS CONTAINER - NEW -->
+            <div class="note-lyrics-container" id="noteViewerLyrics">
+                <p class="no-lyrics-message">⏳ Memuat lirik...</p>
+            </div>
+            <div class="note-viewer-text" id="viewerText"></div>
             <!-- Audio Only Player -->
             <div id="viewerYtContainer" class="viewer-audio-container" style="display:none;">
                 <div class="audio-player-ui">
@@ -234,7 +259,6 @@
                     <iframe id="viewerYtIframe" width="1" height="1" frameborder="0" allow="autoplay; encrypted-media" style="position:absolute;opacity:0;pointer-events:none;"></iframe>
                 </div>
             </div>
-
             <div class="note-viewer-actions">
                 <button class="btn-like-note" id="btnLikeNote" onclick="toggleLikeNote()">❤️ <span id="likeCount">0</span> Suka</button>
                 <button class="btn-reply-note" onclick="focusReply()">💬 Balas</button>
@@ -282,6 +306,13 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const database = getDatabase(app);
+
+        // Expose Firebase ke window agar chat-notes.js bisa gunakan
+        window._database = database;
+        window._dbRef = ref;
+        window._dbGet = get;
+        window._dbSet = set;
+        window._dbPush = push;
 
         // ===== STATE =====
         let currentUser = null;
@@ -354,6 +385,8 @@
             if (hours < 24) return `${hours}h`;
             return `${days}d`;
         }
+        // Expose agar chat-notes.js dapat menggunakan
+        window._formatTimeAgo = formatTimeAgo;
 
         function formatTimeLeft(expiresAt) {
             if (!expiresAt) return '';
@@ -545,12 +578,14 @@
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 currentUser = user;
+                window._currentUserId = user.uid; // expose untuk chat-notes.js
                 document.getElementById('authCheck').style.display = 'none';
                 document.getElementById('chatContainer').style.display = 'flex';
                 setupMyPresence(user.uid);
                 loadCurrentUser();
                 loadAllUsers();
             } else {
+                window._currentUserId = null;
                 document.getElementById('authCheck').style.display = 'flex';
                 document.getElementById('chatContainer').style.display = 'none';
             }
@@ -563,6 +598,8 @@
                     const userData = snapshot.val();
                     currentUserName = userData.fullname || userData.email.split('@')[0];
                     currentUserPhoto = userData.photoURL || 'https://via.placeholder.com/52';
+                    window._currentUserName = currentUserName;
+                    window._currentUserPhoto = currentUserPhoto;
                     document.getElementById('currentUserName').textContent = currentUserName;
                     document.getElementById('noteMyName').textContent = currentUserName.split(' ')[0]; // FIX: show real name
                     if (userData.photoURL) {
@@ -571,6 +608,8 @@
                     }
                 } else {
                     currentUserName = currentUser.displayName || currentUser.email.split('@')[0];
+                    window._currentUserName = currentUserName;
+                    window._currentUserPhoto = currentUserPhoto;
                     document.getElementById('currentUserName').textContent = currentUserName;
                     document.getElementById('noteMyName').textContent = currentUserName.split(' ')[0];
                     set(userRef, {
@@ -975,6 +1014,8 @@
                     document.getElementById('noteTextInput').value = data.text || '';
                     document.getElementById('noteCharCount').textContent = `${(data.text||'').length}/60`;
                     document.getElementById('noteYoutubeInput').value = data.youtubeUrl || '';
+                    document.getElementById('noteSongTitle').value = data.songTitle || '';
+                    document.getElementById('noteArtistName').value = data.artistName || '';
                     if (data.youtubeUrl) previewYoutube(data.youtubeUrl);
                 }
             });
@@ -1000,6 +1041,8 @@
             if (!currentUser) return;
             const text = document.getElementById('noteTextInput').value.trim();
             const youtubeUrl = document.getElementById('noteYoutubeInput').value.trim();
+            const songTitleInput = document.getElementById('noteSongTitle').value.trim();
+            const artistNameInput = document.getElementById('noteArtistName').value.trim();
             if (!text && !youtubeUrl) { alert('⚠️ Isi catatan atau tambahkan lagu YouTube!'); return; }
 
             const videoId = extractYoutubeId(youtubeUrl);
@@ -1008,8 +1051,9 @@
                 text,
                 youtubeUrl,
                 youtubeId: videoId || null,
-                songTitle: text || 'Untitled Song',
-                artistName: 'Unknown Artist',
+                // Gunakan input user, fallback ke text catatan
+                songTitle: songTitleInput || text || 'Untitled Song',
+                artistName: artistNameInput || 'Unknown Artist',
                 userId: currentUser.uid,
                 userName: currentUserName,
                 userPhoto: currentUserPhoto,
@@ -1172,46 +1216,51 @@
             });
         }
 
-        // FIX: openNoteViewer fully rewritten — removed orphaned code & instagramNoteViewer reference
+        // FIX: openNoteViewer — gunakan instagramNoteViewer untuk modal Instagram-style dengan lirik
         window.openNoteViewer = function(userId) {
             get(ref(database, `notes/${userId}`)).then(snap => {
                 if (!snap.exists()) { alert('Catatan tidak ditemukan atau sudah dihapus.'); return; }
                 const note = snap.val();
-
-                // FIX: set viewingNoteUserId so like/reply work correctly
                 viewingNoteUserId = userId;
-                audioPlaying = false;
-
-                document.getElementById('viewerAvatar').src = note.userPhoto || 'https://via.placeholder.com/40';
-                document.getElementById('viewerName').textContent = note.userName || 'User';
-                document.getElementById('viewerTime').textContent = formatTimeAgo(note.updatedAt);
-                document.getElementById('viewerText').textContent = note.text || '';
-
-                const ytContainer = document.getElementById('viewerYtContainer');
-                const iframe = document.getElementById('viewerYtIframe');
-                if (note.youtubeId) {
-                    iframe.src = `https://www.youtube.com/embed/${note.youtubeId}?autoplay=0&controls=0&enablejsapi=1`;
-                    document.getElementById('audioSongName').textContent = note.text || 'Lagu dari ' + (note.userName || 'teman');
-                    document.getElementById('audioPlayBtn').textContent = '▶';
-                    document.getElementById('audioMusicIcon').classList.remove('playing');
-                    ytContainer.style.display = 'block';
+                // Gunakan modal baru Instagram-style
+                if (window.instagramNoteViewer) {
+                    window.instagramNoteViewer.open(userId, note);
                 } else {
-                    iframe.src = '';
-                    ytContainer.style.display = 'none';
+                    // Fallback ke modal lama jika instagramNoteViewer tidak tersedia
+                    _openNoteViewerLegacy(userId, note);
                 }
-
-                const likes = note.likes || {};
-                const likeCount = Object.keys(likes).length;
-                const liked = !!likes[currentUser.uid];
-                const likeBtn = document.getElementById('btnLikeNote');
-                likeBtn.className = `btn-like-note${liked ? ' liked' : ''}`;
-                likeBtn.innerHTML = `${liked ? '❤️' : '🤍'} <span id="likeCount">${likeCount}</span> Suka`;
-
-                renderReplies(note.replies || {});
-                document.getElementById('replyInput').value = '';
-                document.getElementById('noteViewerModal').style.display = 'flex';
             }).catch(err => { console.error('Error opening note viewer:', err); alert('❌ Gagal membuka catatan.'); });
         };
+
+        // Modal lama (fallback)
+        function _openNoteViewerLegacy(userId, note) {
+            audioPlaying = false;
+            document.getElementById('viewerAvatar').src = note.userPhoto || 'https://via.placeholder.com/40';
+            document.getElementById('viewerName').textContent = note.userName || 'User';
+            document.getElementById('viewerTime').textContent = formatTimeAgo(note.updatedAt);
+            document.getElementById('viewerText').textContent = note.text || '';
+            const ytContainer = document.getElementById('viewerYtContainer');
+            const iframe = document.getElementById('viewerYtIframe');
+            if (note.youtubeId) {
+                iframe.src = `https://www.youtube.com/embed/${note.youtubeId}?autoplay=0&controls=0&enablejsapi=1`;
+                document.getElementById('audioSongName').textContent = note.text || 'Lagu dari ' + (note.userName || 'teman');
+                document.getElementById('audioPlayBtn').textContent = '▶';
+                document.getElementById('audioMusicIcon').classList.remove('playing');
+                ytContainer.style.display = 'block';
+            } else {
+                iframe.src = '';
+                ytContainer.style.display = 'none';
+            }
+            const likes = note.likes || {};
+            const likeCount = Object.keys(likes).length;
+            const liked = !!likes[currentUser.uid];
+            const likeBtn = document.getElementById('btnLikeNote');
+            likeBtn.className = `btn-like-note${liked ? ' liked' : ''}`;
+            likeBtn.innerHTML = `${liked ? '❤️' : '🤍'} <span id="likeCount">${likeCount}</span> Suka`;
+            renderReplies(note.replies || {});
+            document.getElementById('replyInput').value = '';
+            document.getElementById('noteViewerModal').style.display = 'flex';
+        }
 
         window.closeNoteViewer = function() {
             document.getElementById('noteViewerModal').style.display = 'none';
