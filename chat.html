@@ -218,8 +218,22 @@
                     <div class="note-viewer-time" id="viewerTime"></div>
                 </div>
             </div>
-            <div class="note-viewer-text" id="viewerText"></div>
 
+            <!-- SONG INFO BOX - NEW -->
+            <div class="note-song-info-box">
+                <div class="note-song-icon">🎵</div>
+                <p class="note-song-title" id="viewerSongTitle">Loading...</p>
+                <p class="note-song-artist" id="viewerArtistName">Unknown</p>
+                <div class="note-song-duration">
+                    <span id="viewerCurrentTime">0:00</span>
+                    <span id="viewerDuration">0:00</span>
+                </div>
+            </div>
+            <!-- LYRICS CONTAINER - NEW -->
+            <div class="note-lyrics-container" id="noteViewerLyrics">
+                <p class="no-lyrics-message">⏳ Memuat lirik...</p>
+            </div>
+            <div class="note-viewer-text" id="viewerText"></div>
             <!-- Audio Only Player -->
             <div id="viewerYtContainer" class="viewer-audio-container" style="display:none;">
                 <div class="audio-player-ui">
@@ -234,7 +248,6 @@
                     <iframe id="viewerYtIframe" width="1" height="1" frameborder="0" allow="autoplay; encrypted-media" style="position:absolute;opacity:0;pointer-events:none;"></iframe>
                 </div>
             </div>
-
             <div class="note-viewer-actions">
                 <button class="btn-like-note" id="btnLikeNote" onclick="toggleLikeNote()">❤️ <span id="likeCount">0</span> Suka</button>
                 <button class="btn-reply-note" onclick="focusReply()">💬 Balas</button>
