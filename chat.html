@@ -208,7 +208,17 @@
             </div>
 
             <div class="form-group">
-                <label>🎵 Link YouTube (hanya audio yang diputar)</label>
+                <label>🎵 Judul Lagu</label>
+                <input type="text" id="noteSongTitle" maxlength="80" placeholder="Contoh: Blinding Lights">
+            </div>
+
+            <div class="form-group">
+                <label>🎤 Nama Artis</label>
+                <input type="text" id="noteArtistName" maxlength="60" placeholder="Contoh: The Weeknd">
+            </div>
+
+            <div class="form-group">
+                <label>🔗 Link YouTube (hanya audio yang diputar)</label>
                 <input type="text" id="noteYoutubeInput" placeholder="https://www.youtube.com/watch?v=...">
             </div>
 
@@ -239,6 +249,19 @@
                     <div class="note-viewer-time" id="viewerTime"></div>
                 </div>
             </div>
+
+            <!-- Song Info Box -->
+            <div class="note-song-info-box" id="viewerSongInfoBox" style="display:none;">
+                <span class="note-song-icon">🎵</span>
+                <p class="note-song-title" id="viewerSongTitle"></p>
+                <p class="note-song-artist" id="viewerArtistName"></p>
+            </div>
+
+            <!-- Lyrics Container -->
+            <div class="note-lyrics-container" id="noteViewerLyrics" style="display:none;">
+                <p class="no-lyrics-message">⏳ Memuat lirik...</p>
+            </div>
+
             <div class="note-viewer-text" id="viewerText"></div>
 
             <!-- Audio Only Player (video hidden via CSS) -->
@@ -916,6 +939,9 @@
             markAsRead(generateChatId(currentUser.uid, selectedUserId));
             updateUnreadCount(userId, 0);
             updateBrowserTitle();
+            if (window.innerWidth <= 768) {
+                document.querySelector('.chat-sidebar').classList.add('hidden-mobile');
+            }
         };
 
         // Load messages
@@ -1162,6 +1188,7 @@
             document.getElementById('welcomeMessage').style.display = 'flex';
             document.getElementById('messageInput').value = '';
             updateBrowserTitle();
+            document.querySelector('.chat-sidebar').classList.remove('hidden-mobile');
         };
 
         // Search users
@@ -1328,6 +1355,8 @@
                     document.getElementById('noteTextInput').value = data.text || '';
                     document.getElementById('noteCharCount').textContent = `${(data.text||'').length}/60`;
                     document.getElementById('noteYoutubeInput').value = data.youtubeUrl || '';
+                    document.getElementById('noteSongTitle').value = data.songTitle || '';
+                    document.getElementById('noteArtistName').value = data.artistName || '';
                     if (data.youtubeUrl) previewYoutube(data.youtubeUrl);
                 }
             }).catch(err => console.error('Error loading note:', err));
@@ -1367,6 +1396,8 @@
             if (!currentUser) return;
             const text = document.getElementById('noteTextInput').value.trim();
             const youtubeUrl = document.getElementById('noteYoutubeInput').value.trim();
+            const songTitle = document.getElementById('noteSongTitle').value.trim();
+            const artistName = document.getElementById('noteArtistName').value.trim();
 
             if (!text && !youtubeUrl) {
                 alert('⚠️ Isi catatan atau tambahkan lagu YouTube!');
@@ -1380,11 +1411,13 @@
                 text: text,
                 youtubeUrl: youtubeUrl,
                 youtubeId: videoId || null,
+                songTitle: songTitle || null,
+                artistName: artistName || null,
                 userId: currentUser.uid,
                 userName: currentUserName,
                 userPhoto: currentUserPhoto,
                 updatedAt: now,
-                expiresAt: now + 24 * 60 * 60 * 1000, // 24 jam dari sekarang
+                expiresAt: now + 24 * 60 * 60 * 1000,
                 likes: {},
                 replies: {}
             };
@@ -1593,10 +1626,26 @@
                 document.getElementById('viewerTime').textContent = formatTimeAgo(note.updatedAt);
                 document.getElementById('viewerText').textContent = note.text || '';
 
+                // Song Info Box
+                const songInfoBox = document.getElementById('viewerSongInfoBox');
+                const lyricsContainer = document.getElementById('noteViewerLyrics');
+                if (note.songTitle || note.artistName) {
+                    document.getElementById('viewerSongTitle').textContent = note.songTitle || '—';
+                    document.getElementById('viewerArtistName').textContent = note.artistName || '—';
+                    songInfoBox.style.display = 'block';
+                    // Fetch lyrics
+                    lyricsContainer.style.display = 'flex';
+                    lyricsContainer.innerHTML = '<p class="no-lyrics-message">⏳ Memuat lirik...</p>';
+                    fetchLyrics(note.songTitle, note.artistName, lyricsContainer);
+                } else {
+                    songInfoBox.style.display = 'none';
+                    lyricsContainer.style.display = 'none';
+                }
+
                 const ytContainer = document.getElementById('viewerYtContainer');
                 if (note.youtubeId) {
                     document.getElementById('viewerYtIframe').src = `https://www.youtube.com/embed/${note.youtubeId}?autoplay=0&controls=0&enablejsapi=1`;
-                    document.getElementById('audioSongName').textContent = note.text || 'Lagu dari ' + (note.userName || 'teman');
+                    document.getElementById('audioSongName').textContent = note.songTitle || note.text || 'Lagu dari ' + (note.userName || 'teman');
                     document.getElementById('audioPlayBtn').textContent = '▶';
                     document.getElementById('audioMusicIcon').classList.remove('playing');
                     ytContainer.style.display = 'block';
@@ -1609,7 +1658,6 @@
                 const likes = note.likes || {};
                 const likeCount = Object.keys(likes).length;
                 const liked = likes[currentUser.uid];
-                document.getElementById('likeCount').textContent = likeCount;
                 document.getElementById('btnLikeNote').className = `btn-like-note${liked ? ' liked' : ''}`;
                 document.getElementById('btnLikeNote').innerHTML = `${liked ? '❤️' : '🤍'} <span id="likeCount">${likeCount}</span> Suka`;
 
@@ -1617,6 +1665,44 @@
                 document.getElementById('noteViewerModal').style.display = 'flex';
             }).catch(err => console.error('Error opening note viewer:', err));
         };
+
+        // Fetch lyrics dari lyrics.ovh (gratis, no API key)
+        async function fetchLyrics(songTitle, artistName, container) {
+            if (!songTitle) {
+                container.innerHTML = '<p class="no-lyrics-message">Judul lagu tidak tersedia</p>';
+                return;
+            }
+            try {
+                const artist = encodeURIComponent(artistName || '');
+                const title = encodeURIComponent(songTitle);
+                const url = artistName
+                    ? `https://api.lyrics.ovh/v1/${artist}/${title}`
+                    : null;
+
+                if (!url) {
+                    container.innerHTML = '<p class="no-lyrics-message">Tambahkan nama artis untuk melihat lirik</p>';
+                    return;
+                }
+
+                const res = await fetch(url);
+                const data = await res.json();
+
+                if (data.lyrics) {
+                    const lines = data.lyrics.split('\n').filter(l => l.trim() !== '');
+                    container.innerHTML = '';
+                    lines.forEach(line => {
+                        const p = document.createElement('p');
+                        p.className = 'lyrics-line';
+                        p.textContent = line;
+                        container.appendChild(p);
+                    });
+                } else {
+                    container.innerHTML = '<p class="no-lyrics-message">Lirik tidak ditemukan</p>';
+                }
+            } catch (e) {
+                container.innerHTML = '<p class="no-lyrics-message">Gagal memuat lirik</p>';
+            }
+        }
 
         window.toggleAudio = function() {
             const iframe = document.getElementById('viewerYtIframe');
