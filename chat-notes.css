@@ -708,7 +708,84 @@
 }
 .insta-reply-send:hover { background: #2563eb; }
 
-@media (max-width: 480px) {
-    .insta-note-card { border-radius: 16px; }
-    .insta-lyrics-container { height: 160px; }
+/* ===== BALAS NOTE VIA DM ===== */
+
+/* Tombol DM di modal note Instagram */
+.insta-dm-btn {
+    background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(37,99,235,0.15)) !important;
+    border-color: #3b82f6 !important;
+    color: #60a5fa !important;
+    flex: 0 0 auto;
+    min-width: 60px;
 }
+.insta-dm-btn:hover {
+    background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+    color: #fff !important;
+    transform: scale(1.04);
+}
+
+/* Banner "Membalas catatan" di atas input area chat */
+.note-reply-banner {
+    background: linear-gradient(135deg, #1e2d4a 0%, #162136 100%);
+    border-top: 1px solid #2d4a6b;
+    border-left: 3px solid #3b82f6;
+    padding: 8px 14px;
+    animation: bannerSlideIn 0.22s ease;
+    flex-shrink: 0;
+}
+
+@keyframes bannerSlideIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.note-reply-banner-inner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.note-reply-banner-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.note-reply-banner-label {
+    font-size: 0.7rem;
+    color: #60a5fa;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.note-reply-banner-content {
+    font-size: 0.82rem;
+    color: #c9d6e3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.note-reply-banner-close {
+    background: none;
+    border: none;
+    color: #6e7681;
+    font-size: 1rem;
+    cursor: pointer;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.2s, color 0.2s;
+}
+.note-reply-banner-close:hover {
+    background: rgba(255,255,255,0.08);
+    color: #e0e6ed;
+}
+

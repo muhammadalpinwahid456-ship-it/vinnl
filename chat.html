@@ -788,6 +788,69 @@
             });
         }
 
+        // ===== BALAS NOTE VIA DM =====
+        window.openDMWithNote = function(userId, note) {
+            const user = allUsers.find(u => u.uid === userId);
+            const userName = user ? user.name     : (note.userName  || 'User');
+            const photoURL = user ? user.photoURL : (note.userPhoto || 'https://via.placeholder.com/40');
+
+            // Pindah ke tab Pesan & buka chat
+            switchSidebarTab('pesan');
+            selectUser(userId, userName, photoURL);
+
+            // Highlight sidebar
+            document.querySelectorAll('.user-item').forEach(el => {
+                el.classList.toggle('active', el.getAttribute('data-user-id') === userId);
+            });
+
+            // Tampilkan banner "membalas catatan" di atas input
+            showNoteReplyBanner(note);
+
+            // Sisipkan teks awal di input agar mudah dihapus / diganti
+            const msgInput = document.getElementById('messageInput');
+            if (msgInput) {
+                msgInput.value = '';
+                msgInput.focus();
+            }
+        };
+
+        function showNoteReplyBanner(note) {
+            const old = document.getElementById('noteReplyBanner');
+            if (old) old.remove();
+            const inputArea = document.querySelector('.input-area');
+            if (!inputArea) return;
+            const banner = document.createElement('div');
+            banner.id = 'noteReplyBanner';
+            banner.className = 'note-reply-banner';
+            const label = note.youtubeId
+                ? `🎵 ${escapeHtml(note.songTitle || note.text || 'Catatan musik')}`
+                : `📝 ${escapeHtml(note.text || 'Catatan')}`;
+            banner.innerHTML = `
+                <div class="note-reply-banner-inner">
+                    <div class="note-reply-banner-text">
+                        <span class="note-reply-banner-label">Membalas catatan</span>
+                        <span class="note-reply-banner-content">${label}</span>
+                    </div>
+                    <button class="note-reply-banner-close" onclick="dismissNoteReplyBanner()" title="Batal balas">✕</button>
+                </div>`;
+            inputArea.parentNode.insertBefore(banner, inputArea);
+        }
+
+        window.dismissNoteReplyBanner = function() {
+            const banner = document.getElementById('noteReplyBanner');
+            if (banner) banner.remove();
+            const msgInput = document.getElementById('messageInput');
+            if (msgInput) { msgInput.value = ''; msgInput.focus(); }
+        };
+
+        // Bersihkan banner saat menutup chat
+        const _origCloseChat = window.closeChat;
+        window.closeChat = function() {
+            const banner = document.getElementById('noteReplyBanner');
+            if (banner) banner.remove();
+            if (_origCloseChat) _origCloseChat();
+        };
+
         window.sendMessage = async function() {
             const messageInput = document.getElementById('messageInput');
             const text = messageInput.value.trim();
@@ -818,6 +881,9 @@
                 messageInput.value = '';
                 messageInput.focus();
                 cancelMediaPreview();
+                // Hapus banner "Membalas catatan" setelah pesan terkirim
+                const banner = document.getElementById('noteReplyBanner');
+                if (banner) banner.remove();
             } catch (error) {
                 alert('❌ Gagal mengirim pesan: ' + error.message);
                 document.getElementById('uploadProgress').style.display = 'none';

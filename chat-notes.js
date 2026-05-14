@@ -269,11 +269,14 @@ class InstagramNoteViewer {
                 <button class="insta-action-btn" onclick="window.instagramNoteViewer._focusReply()">
                     💬 ${replyCount} Balas
                 </button>
+                <button class="insta-action-btn insta-dm-btn" onclick="window.instagramNoteViewer._replyViaDM('${userId}')">
+                    ✉️ DM
+                </button>
             </div>
 
             <div class="insta-reply-wrap">
                 <input type="text" id="insta-reply-input" class="insta-reply-input"
-                       placeholder="Tulis balasan..." maxlength="100"
+                       placeholder="Balas di sini atau kirim DM..." maxlength="100"
                        onkeypress="if(event.key==='Enter') window.instagramNoteViewer._sendReply('${userId}')">
                 <button class="insta-reply-send" onclick="window.instagramNoteViewer._sendReply('${userId}')">Kirim</button>
             </div>
@@ -326,6 +329,19 @@ class InstagramNoteViewer {
             });
             if (input) input.value = '';
         } catch(err) { alert('❌ Gagal kirim balasan: ' + err.message); }
+    }
+
+    _replyViaDM(userId) {
+        if (!this.currentNote) return;
+        const note = this.currentNote;
+        // Tutup modal note dulu
+        this.close();
+        // Cari data user dari allUsers atau Firebase, lalu buka DM
+        if (window.openDMWithNote) {
+            window.openDMWithNote(userId, note);
+        } else {
+            console.warn('openDMWithNote not available');
+        }
     }
 
     close() {
