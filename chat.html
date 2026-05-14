@@ -753,15 +753,18 @@
             }
             messages.sort((a, b) => a.timestamp - b.timestamp);
 
+            console.log('🔄 renderMessages, jumlah pesan di DB:', messages.length);
+            messages.forEach(m => console.log('  msg:', m.key, '| text:', m.text, '| sender:', m.senderId, '| isUnsent:', m.isUnsent, '| isDeleted:', m.isDeleted, '| deletedFor:', JSON.stringify(m.deletedFor)));
+
             if (messages.length === 0) {
                 messagesArea.innerHTML = '<p class="no-messages" style="text-align:center;color:#999;padding:2rem;">Belum ada pesan. Mulai percakapan!</p>';
                 return;
             }
 
             messages.forEach(msg => {
-                if (msg.deletedFor && msg.deletedFor[currentUser.uid]) return;
-                if (msg.isUnsent && msg.senderId !== currentUser.uid) return;
-                if (msg.isDeleted && msg.senderId !== currentUser.uid) return;
+                if (msg.deletedFor && msg.deletedFor[currentUser.uid]) { console.log('SKIP deletedFor:', msg.key); return; }
+                if (msg.isUnsent && msg.senderId !== currentUser.uid) { console.log('SKIP isUnsent (bukan sender):', msg.key); return; }
+                if (msg.isDeleted && msg.senderId !== currentUser.uid) { console.log('SKIP isDeleted (bukan sender):', msg.key); return; }
 
                 const el = document.createElement('div');
                 el.className = `message ${msg.senderId === currentUser.uid ? 'sent' : 'received'}`;
@@ -859,49 +862,34 @@
         window.sendMessage = async function() {
             const messageInput = document.getElementById('messageInput');
             const text = messageInput ? messageInput.value.trim() : '';
+            // ✅ FIX #2 & #3: Jangan kirim jika kosong
             if (!selectedMediaFile && !text) return;
             if (!selectedUserId || !currentUser) { alert('❌ Error: User tidak terpilih'); return; }
 
+            // Nonaktifkan tombol kirim sementara untuk cegah double-send
             const sendBtn = document.querySelector('.btn-send');
             if (sendBtn) sendBtn.disabled = true;
 
-            // Simpan nilai input sebelum dikosongkan agar bisa di-restore kalau gagal
-            const originalText = text;
-
             try {
+                // ✅ FIX #3: Gunakan null (bukan "") agar tidak di-reject Firebase rules
                 let mediaUrl  = null;
                 let mediaType = null;
 
                 if (selectedMediaFile) {
                     document.getElementById('uploadProgress').style.display = 'flex';
-                    document.getElementById('progressFill').style.width = '0%';
-                    document.getElementById('progressText').textContent = 'Mengupload... 0%';
-                    try {
-                        const uploadResult = await uploadToCloudinary(selectedMediaFile);
-                        mediaUrl  = uploadResult.url;
-                        mediaType = uploadResult.type;
-                    } catch (uploadErr) {
-                        document.getElementById('uploadProgress').style.display = 'none';
-                        console.error('Upload error:', uploadErr);
-                        alert('❌ Gagal upload media. Pastikan Cloudinary sudah dikonfigurasi dengan benar.\n\nDetail: ' + uploadErr.message);
-                        return;
-                    }
+                    const uploadResult = await uploadToCloudinary(selectedMediaFile);
+                    mediaUrl  = uploadResult.url;
+                    mediaType = uploadResult.type;
                     document.getElementById('uploadProgress').style.display = 'none';
                 }
 
-                // Bangun objek pesan — hanya sertakan field yang ada nilainya
+                // ✅ FIX #3: Bangun objek pesan — JANGAN sertakan field opsional jika nilainya null
                 const messageData = {
                     senderId:   currentUser.uid,
                     senderName: currentUserName || currentUser.displayName || 'Unknown',
                     timestamp:  Date.now(),
                 };
-                // text wajib ada (string) jika dikirim — jika tidak ada teks tapi ada media, kirim string kosong
-                if (text) {
-                    messageData.text = text;
-                } else if (!mediaUrl) {
-                    return; // tidak ada konten sama sekali
-                }
-                // Jika ada media, text kosong tidak disertakan (valid karena ada mediaUrl)
+                if (text)      messageData.text      = text;
                 if (mediaUrl)  messageData.mediaUrl  = mediaUrl;
                 if (mediaType) messageData.mediaType = mediaType;
 
@@ -911,16 +899,16 @@
 
                 if (messageInput) { messageInput.value = ''; messageInput.focus(); }
                 cancelMediaPreview();
+                // Hapus banner "Membalas catatan" setelah pesan terkirim
                 const banner = document.getElementById('noteReplyBanner');
                 if (banner) banner.remove();
 
             } catch (error) {
-                console.error('❌ sendMessage error:', error.code, error.message, error);
+                console.error('❌ sendMessage error:', error.code, error.message);
                 document.getElementById('uploadProgress').style.display = 'none';
-                // Kembalikan teks ke input agar user tidak kehilangan pesannya
-                if (messageInput && originalText) messageInput.value = originalText;
+                // ✅ FIX #2: Tampilkan error spesifik ke user
                 if (error.code === 'PERMISSION_DENIED') {
-                    alert('⚠️ Tidak punya izin mengirim pesan.\n\nKemungkinan penyebab:\n• Session login sudah habis → coba logout & login ulang\n• Firebase rules memblokir → update database-rules.json');
+                    alert('⚠️ Tidak punya izin mengirim pesan. Coba login ulang.');
                 } else if (error.message && error.message.toLowerCase().includes('network')) {
                     alert('⚠️ Koneksi bermasalah. Periksa internet kamu.');
                 } else {
